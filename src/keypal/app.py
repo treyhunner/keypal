@@ -1,10 +1,11 @@
 import time
+from enum import Enum
 
 import darkdetect
 from fsrs import Card
 from textual import events
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Header, ListItem, ListView, Static
 
@@ -46,7 +47,7 @@ Screen {
 }
 
 #verdict.correct {
-    color: $success;
+    color: $success-darken-2;
 }
 
 #verdict.wrong {
@@ -79,18 +80,19 @@ KeyChip {
     padding: 0 1;
     height: 3;
     width: auto;
-    color: $primary;
+    color: $foreground;
     background: $surface;
+    text-style: bold;
 }
 
 KeyChip.correct {
     border: round $success;
-    color: $success;
+    background: $success 15%;
 }
 
 KeyChip.wrong {
     border: round $error;
-    color: $error;
+    background: $error 15%;
 }
 
 .key-plus {
@@ -115,6 +117,12 @@ ListItem {
     padding: 0 2;
 }
 """
+
+
+class QuizState(Enum):
+    ASKING = "asking"
+    CORRECT_DONE = "correct_done"
+    WRONG_PRACTICE = "wrong_practice"
 
 
 class KeyChip(Static):
@@ -180,8 +188,9 @@ class QuizScreen(Screen):
         self._cards: dict[str, Card] = storage.load_cards()
         self._shortcuts: list[Shortcut] = list(pack.shortcuts)
         self._index = 0
-        self._awaiting_continue = False
+        self._state: QuizState = QuizState.ASKING
         self._start_ns: int | None = None
+        self._last_pressed: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -196,24 +205,29 @@ class QuizScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self._render_prompt()
+        self._begin_card()
 
     def _current(self) -> Shortcut | None:
         if self._index >= len(self._shortcuts):
             return None
         return self._shortcuts[self._index]
 
-    def _render_prompt(self) -> None:
+    def _begin_card(self) -> None:
+        self._state = QuizState.ASKING
+        self._last_pressed = None
+        self._start_ns = time.monotonic_ns() if self._current() else None
+        self._render_state()
+
+    def _render_state(self) -> None:
         shortcut = self._current()
         progress = self.query_one("#progress", Static)
         prompt = self.query_one("#prompt", Static)
-        verdict = self.query_one("#verdict", Static)
-        hint = self.query_one("#hint", Static)
         your_combo = self.query_one("#your-combo", KeyCombo)
-        expected_combo = self.query_one("#expected-combo", KeyCombo)
+        verdict = self.query_one("#verdict", Static)
         expected_label = self.query_one("#expected-label", Static)
+        expected_combo = self.query_one("#expected-combo", KeyCombo)
+        hint = self.query_one("#hint", Static)
 
-        # Reset answer area
         your_combo.clear()
         expected_combo.clear()
         expected_label.add_class("hidden")
@@ -229,54 +243,84 @@ class QuizScreen(Screen):
 
         progress.update(f"{self._index + 1} / {len(self._shortcuts)}")
         prompt.update(shortcut.action)
-        hint.update("Press the shortcut")
-        self._start_ns = time.monotonic_ns()
+
+        if self._state is QuizState.ASKING:
+            hint.update("Press the shortcut · Space if you don't know")
+            return
+
+        if self._state is QuizState.CORRECT_DONE:
+            assert self._last_pressed is not None
+            your_combo.set_combo(self._last_pressed, chip_class="correct")
+            verdict.update("Correct")
+            verdict.add_class("correct")
+            hint.update("Press Enter to continue")
+            return
+
+        # WRONG_PRACTICE
+        if self._last_pressed is not None:
+            your_combo.set_combo(self._last_pressed, chip_class="wrong")
+            verdict.update("Wrong")
+        else:
+            verdict.update("Don't know")
+        verdict.add_class("wrong")
+        expected_label.remove_class("hidden")
+        expected_combo.set_combo(shortcut.keys[0], chip_class="correct")
+        hint.update("Now press the shortcut to continue")
 
     def on_key(self, event: events.Key) -> None:
-        if self._awaiting_continue:
-            if event.key in {"space", "enter"}:
-                event.stop()
-                self._awaiting_continue = False
-                self._index += 1
-                self._render_prompt()
-            return
-
-        shortcut = self._current()
-        if shortcut is None:
-            return
         if event.key == "escape":
-            return  # let binding handle it
+            return  # let binding handle
+        if self._current() is None:
+            return
+
+        if self._state is QuizState.ASKING:
+            self._handle_asking(event)
+        elif self._state is QuizState.CORRECT_DONE:
+            self._handle_correct_done(event)
+        else:
+            self._handle_wrong_practice(event)
+
+    def _handle_asking(self, event: events.Key) -> None:
         event.stop()
+        shortcut = self._current()
+        assert shortcut is not None
 
-        elapsed_ms = (time.monotonic_ns() - (self._start_ns or time.monotonic_ns())) // 1_000_000
-        correct = matches(event.key, shortcut.keys)
+        elapsed_ms = self._elapsed_ms()
+        self._last_pressed = None if event.key == "space" else event.key
 
+        correct = event.key != "space" and matches(event.key, shortcut.keys)
+        self._record_answer(shortcut, correct=correct, response_time_ms=elapsed_ms)
+        self._state = QuizState.CORRECT_DONE if correct else QuizState.WRONG_PRACTICE
+        self._render_state()
+
+    def _handle_correct_done(self, event: events.Key) -> None:
+        if event.key == "enter":
+            event.stop()
+            self._advance()
+
+    def _handle_wrong_practice(self, event: events.Key) -> None:
+        shortcut = self._current()
+        assert shortcut is not None
+        if matches(event.key, shortcut.keys):
+            event.stop()
+            self._advance()
+
+    def _advance(self) -> None:
+        self._index += 1
+        self._begin_card()
+
+    def _elapsed_ms(self) -> int:
+        if self._start_ns is None:
+            return 0
+        return (time.monotonic_ns() - self._start_ns) // 1_000_000
+
+    def _record_answer(self, shortcut: Shortcut, *, correct: bool, response_time_ms: int) -> None:
         shortcut_id = self._pack.shortcut_id(shortcut)
         card = self._cards.get(shortcut_id, Card())
-        updated, log = review(card, correct=correct, response_time_ms=int(elapsed_ms))
+        updated, log = review(card, correct=correct, response_time_ms=int(response_time_ms))
         self._cards[shortcut_id] = updated
         self._storage.save_cards(self._cards)
         self._storage.append_review(shortcut_id, log)
-
-        your_combo = self.query_one("#your-combo", KeyCombo)
-        verdict = self.query_one("#verdict", Static)
-        hint = self.query_one("#hint", Static)
-        your_combo.set_combo(event.key, chip_class="correct" if correct else "wrong")
-
-        if correct:
-            verdict.update("Correct")
-            verdict.add_class("correct")
-        else:
-            verdict.update("Wrong")
-            verdict.add_class("wrong")
-            expected_label = self.query_one("#expected-label", Static)
-            expected_combo = self.query_one("#expected-combo", KeyCombo)
-            expected_label.remove_class("hidden")
-            # Show first expected combo (could show all eventually)
-            expected_combo.set_combo(shortcut.keys[0], chip_class="correct")
-
-        hint.update("Press Space to continue")
-        self._awaiting_continue = True
 
 
 class KeypalApp(App):
