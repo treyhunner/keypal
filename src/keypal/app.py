@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 import darkdetect
-from fsrs import Card, State
+from fsrs import Card, Rating, State
 from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -12,7 +12,7 @@ from textual.widgets import Footer, Header, ListItem, ListView, Static
 
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
-from keypal.scheduler import review, select_session
+from keypal.scheduler import review, review_with_rating, select_session
 from keypal.storage import Storage
 
 
@@ -140,6 +140,16 @@ class QuizState(Enum):
     ASKING = "asking"
     CORRECT_DONE = "correct_done"
     WRONG_PRACTICE = "wrong_practice"
+    THINKING = "thinking"  # capturable=False: prompt shown, awaiting reveal
+    REVEAL = "reveal"  # capturable=False: answer shown, awaiting self-rate
+
+
+SELF_RATE_KEYS = {
+    "1": Rating.Again,
+    "2": Rating.Hard,
+    "3": Rating.Good,
+    "4": Rating.Easy,
+}
 
 
 class KeyChip(Static):
@@ -343,10 +353,20 @@ class QuizScreen(Screen):
         return self._shortcuts[self._index]
 
     def _begin_card(self) -> None:
-        self._state = QuizState.ASKING
+        shortcut = self._current()
+        if shortcut is not None and not shortcut.capturable:
+            self._state = QuizState.THINKING
+        else:
+            self._state = QuizState.ASKING
         self._last_pressed = None
-        self._start_ns = time.monotonic_ns() if self._current() else None
+        self._start_ns = time.monotonic_ns() if shortcut else None
         self._render_state()
+
+    def _prompt_text(self, shortcut: Shortcut) -> str:
+        if self._pack.prefix:
+            prefix_pretty = "+".join(prettify_combo(self._pack.prefix))
+            return f"{shortcut.action}  (after {prefix_pretty})"
+        return shortcut.action
 
     def _render_state(self) -> None:
         shortcut = self._current()
@@ -372,10 +392,19 @@ class QuizScreen(Screen):
             return
 
         progress.update(f"{self._index + 1} / {len(self._shortcuts)}")
-        prompt.update(shortcut.action)
+        prompt.update(self._prompt_text(shortcut))
 
         if self._state is QuizState.ASKING:
             hint.update("Press the shortcut · Space if you don't know")
+            return
+
+        if self._state is QuizState.THINKING:
+            hint.update("Think it through, then press Space to reveal")
+            return
+
+        if self._state is QuizState.REVEAL:
+            expected_combo.set_combo(shortcut.keys[0], chip_class="correct")
+            hint.update("How did you do?  1 Again · 2 Hard · 3 Good · 4 Easy")
             return
 
         if self._state is QuizState.CORRECT_DONE:
@@ -407,8 +436,12 @@ class QuizScreen(Screen):
             self._handle_asking(event)
         elif self._state is QuizState.CORRECT_DONE:
             self._handle_correct_done(event)
-        else:
+        elif self._state is QuizState.WRONG_PRACTICE:
             self._handle_wrong_practice(event)
+        elif self._state is QuizState.THINKING:
+            self._handle_thinking(event)
+        elif self._state is QuizState.REVEAL:
+            self._handle_reveal(event)
 
     def _handle_asking(self, event: events.Key) -> None:
         event.stop()
@@ -457,6 +490,30 @@ class QuizScreen(Screen):
         if shortcut is not None:
             self._record_answer(shortcut, correct=correct, response_time_ms=self._pending_elapsed_ms)
         self._advance()
+
+    def _handle_thinking(self, event: events.Key) -> None:
+        if event.key == "space":
+            event.stop()
+            self._state = QuizState.REVEAL
+            self._render_state()
+
+    def _handle_reveal(self, event: events.Key) -> None:
+        rating = SELF_RATE_KEYS.get(event.key)
+        if rating is None:
+            return
+        event.stop()
+        shortcut = self._current()
+        if shortcut is not None:
+            self._record_self_rate(shortcut, rating)
+        self._advance()
+
+    def _record_self_rate(self, shortcut: Shortcut, rating: Rating) -> None:
+        shortcut_id = self._pack.shortcut_id(shortcut)
+        card = self._cards.get(shortcut_id, Card())
+        updated, log = review_with_rating(card, rating)
+        self._cards[shortcut_id] = updated
+        self._storage.save_cards(self._cards)
+        self._storage.append_review(shortcut_id, log)
 
     def _advance(self) -> None:
         self._index += 1
