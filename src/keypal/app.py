@@ -7,7 +7,7 @@ import darkdetect
 from fsrs import Card, State
 from textual import events
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
 
@@ -198,6 +198,38 @@ KeyChip.wrong {
     background: $surface;
 }
 
+#browse-content {
+    width: 80;
+    max-width: 100%;
+    height: 100%;
+    padding: 0 2;
+}
+
+#browse-title {
+    text-style: bold;
+    color: $accent;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#browse-desc {
+    color: $text-muted;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#browse-prefix {
+    color: $text-muted;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+.browse-row {
+    width: 100%;
+    height: 1;
+    padding: 0 1;
+}
+
 .hidden {
     display: none;
 }
@@ -313,6 +345,7 @@ class ConfirmSwapModal(ModalScreen[bool]):
 class HomeScreen(Screen):
     BINDINGS = [
         ("q", "app.quit", "Quit"),
+        ("b", "browse", "Browse pack"),
         ("s", "stats", "Stats"),
         ("d", "diagnostics", "Test keys"),
     ]
@@ -322,6 +355,19 @@ class HomeScreen(Screen):
 
     def action_stats(self) -> None:
         self.app.push_screen(StatsScreen(self._packs, self.app.storage))
+
+    def action_browse(self) -> None:
+        list_view = self.query_one(ListView)
+        item = list_view.highlighted_child
+        if item is None or item.id is None:
+            return
+        prefix = "pack-"
+        if not item.id.startswith(prefix):
+            return
+        pack_id = item.id[len(prefix):]
+        pack = next((p for p in self._packs if p.id == pack_id), None)
+        if pack is not None:
+            self.app.push_screen(BrowseScreen(pack))
 
     def __init__(self, packs: tuple[Pack, ...]) -> None:
         super().__init__()
@@ -400,6 +446,34 @@ class HomeScreen(Screen):
             return normalize(user_prefix) == normalize(pack.prefix)
         except ValueError:
             return False
+
+
+class BrowseScreen(Screen):
+    BINDINGS = [("escape", "app.pop_screen", "Back")]
+
+    def __init__(self, pack: Pack) -> None:
+        super().__init__()
+        self._pack = pack
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with VerticalScroll(id="browse-content"):
+            yield Static(self._pack.name, id="browse-title")
+            yield Static(self._pack.description, id="browse-desc")
+            if self._pack.prefix:
+                pretty = "+".join(prettify_combo(self._pack.prefix))
+                yield Static(
+                    f"All shortcuts shown after prefix [b]{pretty}[/]",
+                    id="browse-prefix",
+                )
+            for shortcut in self._pack.shortcuts:
+                action = shortcut.action
+                keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
+                yield Static(
+                    f"{action:<42}  [b $primary]{keys}[/]",
+                    classes="browse-row",
+                )
+        yield Footer()
 
 
 class DiagnosticScreen(Screen):
