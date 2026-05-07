@@ -48,8 +48,7 @@ def parse_pack(data: dict[str, Any]) -> Pack:
 
 
 def load_pack(path: Path) -> Pack:
-    with path.open("rb") as f:
-        return parse_pack(tomllib.load(f))
+    return parse_pack(tomllib.loads(path.read_text()))
 
 
 def builtin_packs() -> tuple[Pack, ...]:
@@ -61,8 +60,7 @@ def builtin_packs() -> tuple[Pack, ...]:
     packs = []
     for entry in package.iterdir():
         if entry.name.endswith(".toml"):
-            with entry.open("rb") as f:
-                pack = parse_pack(tomllib.load(f))
+            pack = parse_pack(tomllib.loads(entry.read_text()))
             pack = apply_tmux_overrides(pack)
             pack = apply_obsidian_overrides(pack)
             packs.append(pack)

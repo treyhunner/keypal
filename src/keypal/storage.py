@@ -49,14 +49,14 @@ class Storage:
     def append_review(self, shortcut_id: str, log: ReviewLog) -> None:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         record = {"shortcut_id": shortcut_id, "log": log.to_dict()}
-        with self.review_log_path.open("a") as f:
-            f.write(json.dumps(record) + "\n")
+        with open(self.review_log_path, mode="at") as file:
+            file.write(json.dumps(record) + "\n")
 
     def read_reviews(self) -> Iterator[tuple[str, ReviewLog]]:
         if not self.review_log_path.exists():
             return
-        with self.review_log_path.open() as f:
-            for line in f:
+        with open(self.review_log_path) as file:
+            for line in file:
                 if not line.strip():
                     continue
                 record = json.loads(line)
