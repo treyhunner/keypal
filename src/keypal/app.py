@@ -736,8 +736,11 @@ class KeypalApp(App):
         atexit.register(self.tmux_swap.deactivate)
 
     def on_mount(self) -> None:
-        if darkdetect.theme() == "Light":
-            self.theme = "textual-light"
+        match darkdetect.theme():
+            case "Light":
+                self.theme = "solarized-light"
+            case "Dark":
+                self.theme = "solarized-dark"
         self.push_screen(HomeScreen(self.packs))
 
 
