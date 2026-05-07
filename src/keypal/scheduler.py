@@ -33,15 +33,6 @@ def review(
     )
 
 
-def review_with_rating(
-    card: Card,
-    rating: Rating,
-    *,
-    scheduler: Scheduler | None = None,
-) -> tuple[Card, ReviewLog]:
-    return (scheduler or Scheduler()).review_card(card, rating)
-
-
 def select_session(
     pack: Pack,
     cards: Mapping[str, Card],
