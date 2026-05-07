@@ -1,7 +1,7 @@
 [pack]
 id = "obsidian"
 name = "Obsidian"
-description = "Useful Obsidian shortcuts plus Trey's custom bindings."
+description = "Useful Obsidian shortcuts. Customs are read live from your hotkeys.json."
 
 
 # === Core navigation ===
@@ -10,36 +10,43 @@ description = "Useful Obsidian shortcuts plus Trey's custom bindings."
 action = "Open command palette"
 keys = ["ctrl+p"]
 tags = ["navigation"]
+command = "command-palette:open"
 
 [[shortcuts]]
 action = "Quick switcher (open file)"
 keys = ["ctrl+o"]
 tags = ["navigation"]
+command = "switcher:open"
 
 [[shortcuts]]
 action = "Search the current note"
 keys = ["ctrl+f"]
 tags = ["navigation"]
+command = "editor:open-search"
 
 [[shortcuts]]
 action = "Search across the vault"
 keys = ["ctrl+shift+f"]
 tags = ["navigation"]
+command = "global-search:open"
 
 [[shortcuts]]
 action = "Open graph view"
 keys = ["ctrl+g"]
 tags = ["navigation"]
+command = "graph:open"
 
 [[shortcuts]]
 action = "Navigate back"
 keys = ["alt+left"]
-tags = ["navigation", "custom"]
+tags = ["navigation"]
+command = "app:go-back"
 
 [[shortcuts]]
 action = "Navigate forward"
 keys = ["alt+right"]
-tags = ["navigation", "custom"]
+tags = ["navigation"]
+command = "app:go-forward"
 
 
 # === Files & tabs ===
@@ -48,16 +55,19 @@ tags = ["navigation", "custom"]
 action = "New note"
 keys = ["ctrl+n"]
 tags = ["files"]
+command = "file-explorer:new-file"
 
 [[shortcuts]]
 action = "Close current tab"
 keys = ["ctrl+w"]
 tags = ["files"]
+command = "workspace:close"
 
 [[shortcuts]]
 action = "Reopen closed tab"
 keys = ["ctrl+shift+t"]
 tags = ["files"]
+command = "workspace:undo-close-pane"
 
 
 # === Modes ===
@@ -66,11 +76,13 @@ tags = ["files"]
 action = "Toggle edit/preview mode"
 keys = ["ctrl+e"]
 tags = ["modes"]
+command = "markdown:toggle-preview"
 
 [[shortcuts]]
 action = "Toggle source/live-preview"
 keys = ["ctrl+m"]
-tags = ["modes", "custom"]
+tags = ["modes"]
+command = "editor:toggle-source"
 
 
 # === Workspace splits ===
@@ -78,17 +90,20 @@ tags = ["modes", "custom"]
 [[shortcuts]]
 action = "Split editor vertically"
 keys = ["ctrl+\\"]
-tags = ["workspace", "custom"]
+tags = ["workspace"]
+command = "workspace:split-vertical"
 
 [[shortcuts]]
 action = "Split editor horizontally"
 keys = ["ctrl+-"]
-tags = ["workspace", "custom"]
+tags = ["workspace"]
+command = "workspace:split-horizontal"
 
 [[shortcuts]]
 action = "Open tag pane"
 keys = ["ctrl+alt+shift+t"]
-tags = ["workspace", "custom"]
+tags = ["workspace"]
+command = "tag-pane:open"
 
 
 # === Editing ===
@@ -97,21 +112,25 @@ tags = ["workspace", "custom"]
 action = "Bold selection"
 keys = ["ctrl+b"]
 tags = ["editing"]
+command = "editor:toggle-bold"
 
 [[shortcuts]]
 action = "Italic selection"
 keys = ["ctrl+i"]
 tags = ["editing"]
+command = "editor:toggle-italics"
 
 [[shortcuts]]
 action = "Insert link"
 keys = ["ctrl+k"]
 tags = ["editing"]
+command = "editor:insert-link"
 
 [[shortcuts]]
 action = "Toggle checklist item"
 keys = ["ctrl+l", "ctrl+enter"]
-tags = ["editing", "custom"]
+tags = ["editing"]
+command = "editor:toggle-checklist-status"
 
 
 # === Outliner plugin ===
@@ -119,12 +138,14 @@ tags = ["editing", "custom"]
 [[shortcuts]]
 action = "Move list item up"
 keys = ["alt+shift+up"]
-tags = ["outliner", "custom"]
+tags = ["outliner"]
+command = "obsidian-outliner:move-list-item-up"
 
 [[shortcuts]]
 action = "Move list item down"
 keys = ["alt+shift+down"]
-tags = ["outliner", "custom"]
+tags = ["outliner"]
+command = "obsidian-outliner:move-list-item-down"
 
 
 # === Meta ===
@@ -133,3 +154,4 @@ tags = ["outliner", "custom"]
 action = "Open settings"
 keys = ["ctrl+,"]
 tags = ["meta"]
+command = "app:open-settings"
