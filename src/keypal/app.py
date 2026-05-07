@@ -9,7 +9,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Header, ListItem, ListView, Static
 
-from keypal.keys import matches, prettify_combo
+from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import review
 from keypal.storage import Storage
@@ -225,6 +225,7 @@ class QuizScreen(Screen):
         self._pack = pack
         self._storage = storage
         self._cards: dict[str, Card] = storage.load_cards()
+        self._aliases: dict[str, set[str]] = storage.load_aliases()
         self._shortcuts: list[Shortcut] = list(pack.shortcuts)
         self._index = 0
         self._state: QuizState = QuizState.ASKING
@@ -328,7 +329,7 @@ class QuizScreen(Screen):
         self._pending_elapsed_ms = self._elapsed_ms()
         self._last_pressed = None if event.key == "space" else event.key
 
-        correct = event.key != "space" and matches(event.key, shortcut.keys)
+        correct = event.key != "space" and matches(event.key, shortcut.keys, self._aliases)
         self._state = QuizState.CORRECT_DONE if correct else QuizState.WRONG_PRACTICE
         self._render_state()
 
@@ -342,11 +343,25 @@ class QuizScreen(Screen):
         assert shortcut is not None
         if event.key == "y":
             # Override: user claims the terminal mistranslated their keypress.
+            # Remember the mistranslation so future presses match without needing 'y'.
             event.stop()
+            if self._last_pressed is not None:
+                self._remember_alias(shortcut, self._last_pressed)
             self._finalize(correct=True)
-        elif event.key == "enter" or matches(event.key, shortcut.keys):
+        elif event.key == "enter" or matches(event.key, shortcut.keys, self._aliases):
             event.stop()
             self._finalize(correct=False)
+
+    def _remember_alias(self, shortcut: Shortcut, pressed: str) -> None:
+        try:
+            normalized_pressed = normalize(pressed)
+            normalized_expected = normalize(shortcut.keys[0])
+        except ValueError:
+            return
+        if normalized_pressed == normalized_expected:
+            return
+        self._aliases.setdefault(normalized_expected, set()).add(normalized_pressed)
+        self._storage.save_aliases(self._aliases)
 
     def _finalize(self, *, correct: bool) -> None:
         shortcut = self._current()

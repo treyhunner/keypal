@@ -50,3 +50,15 @@ def test_append_and_read_reviews_roundtrip(tmp_path):
 def test_read_reviews_empty_when_missing(tmp_path):
     storage = Storage(base_dir=tmp_path)
     assert list(storage.read_reviews()) == []
+
+
+def test_aliases_empty_when_missing(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    assert storage.load_aliases() == {}
+
+
+def test_aliases_roundtrip(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    aliases = {"alt+f": {"ctrl+right"}, "alt+b": {"ctrl+left"}}
+    storage.save_aliases(aliases)
+    assert storage.load_aliases() == aliases

@@ -27,6 +27,10 @@ class Storage:
     def review_log_path(self) -> Path:
         return self.base_dir / "review_log.ndjson"
 
+    @property
+    def aliases_path(self) -> Path:
+        return self.base_dir / "aliases.json"
+
     def load_cards(self) -> dict[str, Card]:
         if not self.cards_path.exists():
             return {}
@@ -53,3 +57,14 @@ class Storage:
                     continue
                 record = json.loads(line)
                 yield record["shortcut_id"], ReviewLog.from_dict(record["log"])
+
+    def load_aliases(self) -> dict[str, set[str]]:
+        if not self.aliases_path.exists():
+            return {}
+        raw = json.loads(self.aliases_path.read_text())
+        return {expected: set(pressed) for expected, pressed in raw.items()}
+
+    def save_aliases(self, aliases: dict[str, set[str]]) -> None:
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        serialized = {expected: sorted(pressed) for expected, pressed in aliases.items()}
+        self.aliases_path.write_text(json.dumps(serialized, indent=2) + "\n")

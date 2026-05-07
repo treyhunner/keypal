@@ -60,6 +60,21 @@ def test_matches_returns_false_on_unparseable_pressed():
     assert matches("ctrl+shift", ["ctrl+a"]) is False
 
 
+def test_matches_accepts_alias():
+    aliases = {"alt+f": ["ctrl+right"]}
+    assert matches("ctrl+right", ["alt+f"], aliases) is True
+    assert matches("ctrl+right", ["alt+b"], aliases) is False
+
+
+def test_matches_alias_normalizes_both_sides():
+    aliases = {"alt+f": ["Ctrl+Right"]}
+    assert matches("CTRL+RIGHT", ["Alt+F"], aliases) is True
+
+
+def test_matches_without_alias_still_works():
+    assert matches("ctrl+a", ["ctrl+a"], {}) is True
+
+
 def test_prettify_key_modifiers():
     assert prettify_key("ctrl") == "Ctrl"
     assert prettify_key("Alt") == "Alt"

@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 MODIFIERS = frozenset({"ctrl", "alt", "shift", "meta", "super"})
 
@@ -37,12 +37,27 @@ def normalize(combo: str) -> str:
     return "+".join([*modifiers, keys[0]])
 
 
-def matches(pressed: str, expected: Iterable[str]) -> bool:
+def matches(
+    pressed: str,
+    expected: Iterable[str],
+    aliases: Mapping[str, Iterable[str]] | None = None,
+) -> bool:
     try:
-        normalized = normalize(pressed)
+        normalized_pressed = normalize(pressed)
     except ValueError:
         return False
-    return normalized in {normalize(e) for e in expected}
+    expected_set = {normalize(e) for e in expected}
+    if normalized_pressed in expected_set:
+        return True
+    if aliases:
+        for exp in expected_set:
+            for alias in aliases.get(exp, []):
+                try:
+                    if normalize(alias) == normalized_pressed:
+                        return True
+                except ValueError:
+                    continue
+    return False
 
 
 def prettify_key(token: str) -> str:
