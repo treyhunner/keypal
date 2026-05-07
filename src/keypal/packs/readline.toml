@@ -15,12 +15,12 @@ tags = ["navigation"]
 
 [[shortcuts]]
 action = "Move forward one word"
-keys = ["alt+f"]
+keys = ["alt+f", "ctrl+right"]
 tags = ["navigation"]
 
 [[shortcuts]]
 action = "Move backward one word"
-keys = ["alt+b"]
+keys = ["alt+b", "ctrl+left"]
 tags = ["navigation"]
 
 [[shortcuts]]
