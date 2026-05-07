@@ -337,8 +337,14 @@ class QuizScreen(Screen):
         self._index = 0
         self._state: QuizState = QuizState.ASKING
         self._start_ns: int | None = None
-        self._last_pressed: str | None = None
+        self._last_pressed_seq: list[str] = []
+        self._chord_buffer: list[str] = []
         self._pending_elapsed_ms: int = 0
+
+    def _expected_seq(self, shortcut: Shortcut) -> list[str]:
+        if self._pack.prefix:
+            return [self._pack.prefix, shortcut.keys[0]]
+        return [shortcut.keys[0]]
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -362,7 +368,8 @@ class QuizScreen(Screen):
 
     def _begin_card(self) -> None:
         self._state = QuizState.ASKING
-        self._last_pressed = None
+        self._last_pressed_seq = []
+        self._chord_buffer = []
         self._start_ns = time.monotonic_ns() if self._current() else None
         self._render_state()
 
@@ -396,23 +403,25 @@ class QuizScreen(Screen):
             hint.update("Press the shortcut · Space if you don't know")
             return
 
+        expected_seq = self._expected_seq(shortcut)
+
         if self._state is QuizState.CORRECT_DONE:
-            # Show the canonical pack combo, not whatever raw key Textual saw.
-            your_combo.set_combo(shortcut.keys[0], chip_class="correct")
+            # Show the canonical pack combo (full chord for chord packs).
+            your_combo.set_combo(expected_seq, chip_class="correct")
             verdict.update("Correct")
             verdict.add_class("correct")
             hint.update("Press Enter to continue")
             return
 
         # WRONG_PRACTICE
-        if self._last_pressed is not None:
-            your_combo.set_combo(self._last_pressed, chip_class="wrong")
+        if self._last_pressed_seq:
+            your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
             verdict.update("Wrong")
         else:
             verdict.update("Don't know")
         verdict.add_class("wrong")
         expected_label.update("Try this:")
-        expected_combo.set_combo(shortcut.keys[0], chip_class="correct")
+        expected_combo.set_combo(expected_seq, chip_class="correct")
         hint.update("Press the shortcut · Y if you actually had it · Enter to skip")
 
     def on_key(self, event: events.Key) -> None:
@@ -433,10 +442,39 @@ class QuizScreen(Screen):
         shortcut = self._current()
         assert shortcut is not None
 
-        self._pending_elapsed_ms = self._elapsed_ms()
-        self._last_pressed = None if event.key == "space" else event.key
+        expected_seq = self._expected_seq(shortcut)
 
-        correct = event.key != "space" and matches(event.key, shortcut.keys, self._aliases)
+        # "Don't know" = Space at the very start (no chord-progress)
+        if event.key == "space" and not self._chord_buffer:
+            self._pending_elapsed_ms = self._elapsed_ms()
+            self._last_pressed_seq = []
+            self._state = QuizState.WRONG_PRACTICE
+            self._render_state()
+            return
+
+        self._chord_buffer.append(event.key)
+
+        # Wrong on first key: complete the attempt as just this key
+        if len(self._chord_buffer) == 1 and not matches(event.key, [expected_seq[0]], self._aliases):
+            self._pending_elapsed_ms = self._elapsed_ms()
+            self._last_pressed_seq = list(self._chord_buffer)
+            self._chord_buffer = []
+            self._state = QuizState.WRONG_PRACTICE
+            self._render_state()
+            return
+
+        # Wait for more keys if chord is incomplete
+        if len(self._chord_buffer) < len(expected_seq):
+            return
+
+        # Full sequence collected; compare
+        self._pending_elapsed_ms = self._elapsed_ms()
+        correct = all(
+            matches(actual, [expected], self._aliases)
+            for actual, expected in zip(self._chord_buffer, expected_seq)
+        )
+        self._last_pressed_seq = list(self._chord_buffer)
+        self._chord_buffer = []
         self._state = QuizState.CORRECT_DONE if correct else QuizState.WRONG_PRACTICE
         self._render_state()
 
@@ -448,27 +486,59 @@ class QuizScreen(Screen):
     def _handle_wrong_practice(self, event: events.Key) -> None:
         shortcut = self._current()
         assert shortcut is not None
-        if event.key == "y":
-            # Override: user claims the terminal mistranslated their keypress.
-            # Remember the mistranslation so future presses match without needing 'y'.
+        expected_seq = self._expected_seq(shortcut)
+
+        # Empty buffer + Y = "got it right" override
+        if not self._chord_buffer and event.key == "y":
             event.stop()
-            if self._last_pressed is not None:
-                self._remember_alias(shortcut, self._last_pressed)
+            self._remember_alias_seq(self._last_pressed_seq, expected_seq)
             self._finalize(correct=True)
-        elif event.key == "enter" or matches(event.key, shortcut.keys, self._aliases):
+            return
+
+        # Empty buffer + Enter = skip practice
+        if not self._chord_buffer and event.key == "enter":
             event.stop()
             self._finalize(correct=False)
+            return
 
-    def _remember_alias(self, shortcut: Shortcut, pressed: str) -> None:
-        try:
-            normalized_pressed = normalize(pressed)
-            normalized_expected = normalize(shortcut.keys[0])
-        except ValueError:
+        # Otherwise: collect chord keys for retry
+        self._chord_buffer.append(event.key)
+
+        # First key wrong on retry: reset buffer (let them try again)
+        if len(self._chord_buffer) == 1 and not matches(event.key, [expected_seq[0]], self._aliases):
+            self._chord_buffer = []
             return
-        if normalized_pressed == normalized_expected:
+
+        # Need more keys?
+        if len(self._chord_buffer) < len(expected_seq):
             return
-        self._aliases.setdefault(normalized_expected, set()).add(normalized_pressed)
-        self._storage.save_aliases(self._aliases)
+
+        # Full sequence collected on retry
+        all_match = all(
+            matches(actual, [expected], self._aliases)
+            for actual, expected in zip(self._chord_buffer, expected_seq)
+        )
+        self._chord_buffer = []
+        if all_match:
+            event.stop()
+            self._finalize(correct=False)  # was wrong on first attempt; just practiced
+
+    def _remember_alias_seq(self, pressed_seq: list[str], expected_seq: list[str]) -> None:
+        if not pressed_seq or len(pressed_seq) != len(expected_seq):
+            return  # nothing to alias, or length mismatch
+        changed = False
+        for actual, expected in zip(pressed_seq, expected_seq):
+            try:
+                normalized_pressed = normalize(actual)
+                normalized_expected = normalize(expected)
+            except ValueError:
+                continue
+            if normalized_pressed == normalized_expected:
+                continue
+            self._aliases.setdefault(normalized_expected, set()).add(normalized_pressed)
+            changed = True
+        if changed:
+            self._storage.save_aliases(self._aliases)
 
     def _finalize(self, *, correct: bool) -> None:
         shortcut = self._current()
