@@ -467,7 +467,7 @@ class QuizScreen(Screen):
         if shortcut is None:
             progress.update("")
             prompt.update("Session complete")
-            hint.update("Press Esc to return")
+            hint.update("Press Enter to return home")
             return
 
         progress.update(f"{self._index + 1} / {len(self._shortcuts)}")
@@ -508,6 +508,10 @@ class QuizScreen(Screen):
         if event.key == "escape":
             return  # let binding handle
         if self._current() is None:
+            # Session complete: Enter returns home.
+            if event.key == "enter":
+                event.stop()
+                self.app.pop_screen()
             return
 
         if self._state is QuizState.ASKING:
@@ -585,9 +589,11 @@ class QuizScreen(Screen):
         # Otherwise: collect chord keys for retry
         self._chord_buffer.append(event.key)
 
-        # First key wrong on retry: reset buffer silently (display still shows original wrong)
+        # First key wrong on retry: surface what they pressed and reset.
         if len(self._chord_buffer) == 1 and not matches(event.key, [expected_seq[0]], self._aliases):
+            self._last_pressed_seq = list(self._chord_buffer)
             self._chord_buffer = []
+            self._render_state()
             return
 
         # Need more keys: render progress so user sees their press.
@@ -600,12 +606,14 @@ class QuizScreen(Screen):
             matches(actual, [expected], self._aliases)
             for actual, expected in zip(self._chord_buffer, expected_seq)
         )
-        self._chord_buffer = []
         if all_match:
             event.stop()
+            self._chord_buffer = []
             self._finalize(correct=False)  # was wrong on first attempt; just practiced
         else:
-            # Wrong second key: re-render to clear chord-in-progress display.
+            # Wrong full chord on retry: replace the displayed attempt with the new one.
+            self._last_pressed_seq = list(self._chord_buffer)
+            self._chord_buffer = []
             self._render_state()
 
     def _remember_alias_seq(self, pressed_seq: list[str], expected_seq: list[str]) -> None:
