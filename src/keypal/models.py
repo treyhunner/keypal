@@ -11,6 +11,7 @@ class Shortcut:
     keys: tuple[str, ...]
     tags: tuple[str, ...] = ()
     hint: str | None = None
+    command: str | None = None  # stable ID joining shortcut to live config (e.g. tmux command, obsidian command id)
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ def parse_pack(data: dict[str, Any]) -> Pack:
             keys=tuple(item["keys"]),
             tags=tuple(item.get("tags", ())),
             hint=item.get("hint"),
+            command=item.get("command"),
         )
         for item in data.get("shortcuts", [])
     )
