@@ -196,6 +196,7 @@ class QuizScreen(Screen):
         self._state: QuizState = QuizState.ASKING
         self._start_ns: int | None = None
         self._last_pressed: str | None = None
+        self._pending_elapsed_ms: int = 0
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -270,7 +271,7 @@ class QuizScreen(Screen):
         verdict.add_class("wrong")
         expected_label.update("Try this:")
         expected_combo.set_combo(shortcut.keys[0], chip_class="correct")
-        hint.update("Now press the shortcut · Enter to skip")
+        hint.update("Press the shortcut · Y if you actually had it · Enter to skip")
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
@@ -290,25 +291,34 @@ class QuizScreen(Screen):
         shortcut = self._current()
         assert shortcut is not None
 
-        elapsed_ms = self._elapsed_ms()
+        self._pending_elapsed_ms = self._elapsed_ms()
         self._last_pressed = None if event.key == "space" else event.key
 
         correct = event.key != "space" and matches(event.key, shortcut.keys)
-        self._record_answer(shortcut, correct=correct, response_time_ms=elapsed_ms)
         self._state = QuizState.CORRECT_DONE if correct else QuizState.WRONG_PRACTICE
         self._render_state()
 
     def _handle_correct_done(self, event: events.Key) -> None:
         if event.key == "enter":
             event.stop()
-            self._advance()
+            self._finalize(correct=True)
 
     def _handle_wrong_practice(self, event: events.Key) -> None:
         shortcut = self._current()
         assert shortcut is not None
-        if event.key == "enter" or matches(event.key, shortcut.keys):
+        if event.key == "y":
+            # Override: user claims the terminal mistranslated their keypress.
             event.stop()
-            self._advance()
+            self._finalize(correct=True)
+        elif event.key == "enter" or matches(event.key, shortcut.keys):
+            event.stop()
+            self._finalize(correct=False)
+
+    def _finalize(self, *, correct: bool) -> None:
+        shortcut = self._current()
+        if shortcut is not None:
+            self._record_answer(shortcut, correct=correct, response_time_ms=self._pending_elapsed_ms)
+        self._advance()
 
     def _advance(self) -> None:
         self._index += 1
