@@ -90,3 +90,10 @@ def test_select_session_card_with_no_due_treated_as_due():
     # Card() may set due to now; either way fresh card with no schedule = due
     queue = select_session(pack, cards)
     assert len(queue) == 1
+
+
+def test_select_session_excludes_disabled():
+    pack = _pack("a", "b", "c")
+    disabled = {pack.shortcut_id(pack.shortcuts[1])}
+    queue = select_session(pack, {}, disabled=disabled, new_per_session=10)
+    assert [s.action for s in queue] == ["a", "c"]

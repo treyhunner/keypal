@@ -39,12 +39,17 @@ def select_session(
     *,
     new_per_session: int = DEFAULT_NEW_PER_SESSION,
     now: datetime | None = None,
+    disabled: set[str] | None = None,
 ) -> list[Shortcut]:
     now = now or datetime.now(timezone.utc)
+    disabled = disabled or set()
     due: list[Shortcut] = []
     new: list[Shortcut] = []
     for shortcut in pack.shortcuts:
-        card = cards.get(pack.shortcut_id(shortcut))
+        sid = pack.shortcut_id(shortcut)
+        if sid in disabled:
+            continue
+        card = cards.get(sid)
         if card is None:
             new.append(shortcut)
         elif card.due is None or card.due <= now:
