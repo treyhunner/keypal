@@ -123,6 +123,14 @@ ListItem.--highlight {
     margin-top: 2;
 }
 
+#auto-advance-dots {
+    width: 100%;
+    text-align: center;
+    color: $text-muted;
+    height: 1;
+    margin-top: 1;
+}
+
 /* === Key chips === */
 
 KeyCombo {
@@ -464,6 +472,9 @@ class StatsScreen(Screen):
 class QuizScreen(Screen):
     BINDINGS = [("escape", "app.pop_screen", "Back to home")]
 
+    AUTO_ADVANCE_TICKS = 3
+    AUTO_ADVANCE_INTERVAL_S = 1.0
+
     def __init__(self, pack: Pack, storage: Storage) -> None:
         super().__init__()
         self._pack = pack
@@ -477,6 +488,8 @@ class QuizScreen(Screen):
         self._last_pressed_seq: list[str] = []
         self._chord_buffer: list[str] = []
         self._pending_elapsed_ms: int = 0
+        self._auto_advance_step = 0
+        self._auto_advance_timer = None
 
     def _expected_seq(self, shortcut: Shortcut) -> list[str]:
         if self._pack.prefix:
@@ -490,6 +503,7 @@ class QuizScreen(Screen):
             yield Static("", id="prompt")
             yield KeyCombo(id="your-combo")
             yield Static("", id="verdict")
+            yield Static("", id="auto-advance-dots")
             yield Static("", id="expected-label")
             yield KeyCombo(id="expected-combo")
             yield Static("", id="hint")
@@ -499,6 +513,7 @@ class QuizScreen(Screen):
         self._begin_card()
 
     def on_unmount(self) -> None:
+        self._cancel_auto_advance()
         # Restore tmux prefix if it was swapped to enter this pack.
         self.app.tmux_swap.deactivate()
 
@@ -508,11 +523,33 @@ class QuizScreen(Screen):
         return self._shortcuts[self._index]
 
     def _begin_card(self) -> None:
+        self._cancel_auto_advance()
         self._state = QuizState.ASKING
         self._last_pressed_seq = []
         self._chord_buffer = []
         self._start_ns = time.monotonic_ns() if self._current() else None
         self._render_state()
+
+    def _start_auto_advance(self) -> None:
+        self._cancel_auto_advance()
+        self._auto_advance_step = 0
+        self._auto_advance_timer = self.set_interval(
+            self.AUTO_ADVANCE_INTERVAL_S, self._tick_auto_advance
+        )
+
+    def _cancel_auto_advance(self) -> None:
+        if self._auto_advance_timer is not None:
+            self._auto_advance_timer.stop()
+            self._auto_advance_timer = None
+        self._auto_advance_step = 0
+
+    def _tick_auto_advance(self) -> None:
+        self._auto_advance_step += 1
+        if self._auto_advance_step >= self.AUTO_ADVANCE_TICKS:
+            self._cancel_auto_advance()
+            self._finalize(correct=True)
+        else:
+            self._render_state()
 
     def _render_state(self) -> None:
         shortcut = self._current()
@@ -520,6 +557,7 @@ class QuizScreen(Screen):
         prompt = self.query_one("#prompt", Static)
         your_combo = self.query_one("#your-combo", KeyCombo)
         verdict = self.query_one("#verdict", Static)
+        dots = self.query_one("#auto-advance-dots", Static)
         expected_label = self.query_one("#expected-label", Static)
         expected_combo = self.query_one("#expected-combo", KeyCombo)
         hint = self.query_one("#hint", Static)
@@ -530,6 +568,7 @@ class QuizScreen(Screen):
         verdict.update("")
         verdict.remove_class("correct")
         verdict.remove_class("wrong")
+        dots.update("")
 
         if shortcut is None:
             progress.update("")
@@ -555,6 +594,7 @@ class QuizScreen(Screen):
             your_combo.set_combo(expected_seq, chip_class="correct")
             verdict.update("Correct")
             verdict.add_class("correct")
+            dots.update((". " * self._auto_advance_step).rstrip())
             hint.update("Press Enter to continue")
             return
 
@@ -628,11 +668,14 @@ class QuizScreen(Screen):
         self._last_pressed_seq = list(self._chord_buffer)
         self._chord_buffer = []
         self._state = QuizState.CORRECT_DONE if correct else QuizState.WRONG_PRACTICE
+        if correct:
+            self._start_auto_advance()
         self._render_state()
 
     def _handle_correct_done(self, event: events.Key) -> None:
         if event.key == "enter":
             event.stop()
+            self._cancel_auto_advance()
             self._finalize(correct=True)
 
     def _handle_wrong_practice(self, event: events.Key) -> None:
