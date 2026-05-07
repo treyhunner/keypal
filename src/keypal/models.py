@@ -11,7 +11,6 @@ class Shortcut:
     keys: tuple[str, ...]
     tags: tuple[str, ...] = ()
     hint: str | None = None
-    capturable: bool = True
 
 
 @dataclass(frozen=True)
@@ -34,7 +33,6 @@ def parse_pack(data: dict[str, Any]) -> Pack:
             keys=tuple(item["keys"]),
             tags=tuple(item.get("tags", ())),
             hint=item.get("hint"),
-            capturable=item.get("capturable", True),
         )
         for item in data.get("shortcuts", [])
     )

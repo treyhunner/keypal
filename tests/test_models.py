@@ -30,7 +30,6 @@ def test_parse_pack_optional_fields():
                 "keys": ["f10", "alt+space"],
                 "tags": ["nav"],
                 "hint": "Top of screen",
-                "capturable": False,
             },
         ],
     }
@@ -39,7 +38,6 @@ def test_parse_pack_optional_fields():
     assert shortcut.keys == ("f10", "alt+space")
     assert shortcut.tags == ("nav",)
     assert shortcut.hint == "Top of screen"
-    assert shortcut.capturable is False
 
 
 def test_parse_pack_no_shortcuts():
