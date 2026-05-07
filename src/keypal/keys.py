@@ -38,7 +38,11 @@ def normalize(combo: str) -> str:
 
 
 def matches(pressed: str, expected: Iterable[str]) -> bool:
-    return normalize(pressed) in {normalize(e) for e in expected}
+    try:
+        normalized = normalize(pressed)
+    except ValueError:
+        return False
+    return normalized in {normalize(e) for e in expected}
 
 
 def prettify_key(token: str) -> str:

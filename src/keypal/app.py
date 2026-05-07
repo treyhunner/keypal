@@ -33,16 +33,19 @@ Screen {
 
 #progress {
     color: $text-muted;
+    height: 1;
     margin-bottom: 1;
 }
 
 #prompt {
     text-style: bold;
+    height: 1;
     margin-bottom: 2;
 }
 
 #verdict {
     text-style: bold;
+    height: 1;
     margin-top: 1;
 }
 
@@ -56,11 +59,13 @@ Screen {
 
 #expected-label {
     color: $text-muted;
+    height: 1;
     margin-top: 1;
 }
 
 #hint {
     color: $text-muted;
+    height: 1;
     margin-top: 2;
 }
 
@@ -71,7 +76,7 @@ Screen {
 
 KeyCombo {
     width: auto;
-    height: auto;
+    height: 3;
     align: center middle;
 }
 
@@ -199,7 +204,7 @@ class QuizScreen(Screen):
             yield Static("", id="prompt")
             yield KeyCombo(id="your-combo")
             yield Static("", id="verdict")
-            yield Static("Try this:", id="expected-label", classes="hidden")
+            yield Static("", id="expected-label")
             yield KeyCombo(id="expected-combo")
             yield Static("", id="hint")
         yield Footer()
@@ -230,7 +235,7 @@ class QuizScreen(Screen):
 
         your_combo.clear()
         expected_combo.clear()
-        expected_label.add_class("hidden")
+        expected_label.update("")
         verdict.update("")
         verdict.remove_class("correct")
         verdict.remove_class("wrong")
@@ -263,9 +268,9 @@ class QuizScreen(Screen):
         else:
             verdict.update("Don't know")
         verdict.add_class("wrong")
-        expected_label.remove_class("hidden")
+        expected_label.update("Try this:")
         expected_combo.set_combo(shortcut.keys[0], chip_class="correct")
-        hint.update("Now press the shortcut to continue")
+        hint.update("Now press the shortcut · Enter to skip")
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
@@ -301,7 +306,7 @@ class QuizScreen(Screen):
     def _handle_wrong_practice(self, event: events.Key) -> None:
         shortcut = self._current()
         assert shortcut is not None
-        if matches(event.key, shortcut.keys):
+        if event.key == "enter" or matches(event.key, shortcut.keys):
             event.stop()
             self._advance()
 

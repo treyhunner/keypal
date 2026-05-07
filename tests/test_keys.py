@@ -54,6 +54,12 @@ def test_matches_normalizes_both_sides():
     assert matches("SHIFT+CTRL+LEFT", ["ctrl+shift+left"])
 
 
+def test_matches_returns_false_on_unparseable_pressed():
+    # Unparseable input should not raise; just doesn't match.
+    assert matches("ctrl++", ["ctrl+a"]) is False
+    assert matches("ctrl+shift", ["ctrl+a"]) is False
+
+
 def test_prettify_key_modifiers():
     assert prettify_key("ctrl") == "Ctrl"
     assert prettify_key("Alt") == "Alt"
