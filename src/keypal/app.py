@@ -1,8 +1,10 @@
+from textual import events
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Label, ListItem, ListView
 
-from keypal.models import Pack, builtin_packs
+from keypal.keys import matches
+from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.storage import Storage
 
 
@@ -26,6 +28,79 @@ class HomeScreen(Screen):
             )
         )
         yield Footer()
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        prefix = "pack-"
+        if event.item.id is None or not event.item.id.startswith(prefix):
+            return
+        pack_id = event.item.id[len(prefix):]
+        pack = next((p for p in self._packs if p.id == pack_id), None)
+        if pack is not None:
+            self.app.push_screen(QuizScreen(pack))
+
+
+class QuizScreen(Screen):
+    BINDINGS = [("escape", "app.pop_screen", "Back to home")]
+
+    def __init__(self, pack: Pack) -> None:
+        super().__init__()
+        self._pack = pack
+        self._shortcuts: list[Shortcut] = list(pack.shortcuts)
+        self._index = 0
+        self._awaiting_continue = False
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Label("", id="progress")
+        yield Label("", id="prompt")
+        yield Label("", id="feedback")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self._render_prompt()
+
+    def _current(self) -> Shortcut | None:
+        if self._index >= len(self._shortcuts):
+            return None
+        return self._shortcuts[self._index]
+
+    def _render_prompt(self) -> None:
+        shortcut = self._current()
+        progress = self.query_one("#progress", Label)
+        prompt = self.query_one("#prompt", Label)
+        feedback = self.query_one("#feedback", Label)
+        if shortcut is None:
+            progress.update("")
+            prompt.update("Session complete. Press Esc to return.")
+            feedback.update("")
+            return
+        progress.update(f"Card {self._index + 1} / {len(self._shortcuts)}")
+        prompt.update(shortcut.action)
+        feedback.update("Press the shortcut...")
+
+    def on_key(self, event: events.Key) -> None:
+        if self._awaiting_continue:
+            if event.key in {"space", "enter"}:
+                event.stop()
+                self._awaiting_continue = False
+                self._index += 1
+                self._render_prompt()
+            return
+
+        shortcut = self._current()
+        if shortcut is None:
+            return
+        if event.key == "escape":
+            return  # let binding handle it
+        event.stop()
+        correct = matches(event.key, shortcut.keys)
+        feedback = self.query_one("#feedback", Label)
+        if correct:
+            feedback.update("Correct! Press Space to continue.")
+        else:
+            expected = " or ".join(shortcut.keys)
+            feedback.update(f"Wrong (you pressed {event.key!r}; expected {expected}). Press Space to continue.")
+        self._awaiting_continue = True
 
 
 class KeypalApp(App):
