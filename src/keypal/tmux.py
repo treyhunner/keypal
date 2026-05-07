@@ -1,5 +1,9 @@
 import os
+import re
 import subprocess
+from dataclasses import replace
+
+from keypal.models import Pack
 
 
 def inside_tmux() -> bool:
@@ -95,3 +99,67 @@ class TmuxPrefixSwap:
     @property
     def active(self) -> bool:
         return self._activated
+
+
+_BIND_RE = re.compile(r"^bind-key\s+(?:-\S+\s+)*-T\s+prefix\s+(\S+)\s+(.+)$")
+
+
+def canonical_tmux_command(cmd: str) -> str:
+    """Strip trailing numeric arguments so 'resize-pane -L 2' matches 'resize-pane -L'."""
+    parts = cmd.strip().split()
+    while parts and parts[-1].isdigit():
+        parts.pop()
+    return " ".join(parts)
+
+
+def parse_tmux_bindings(output: str | None = None) -> dict[str, list[str]]:
+    """Map canonical tmux command -> list of tmux key tokens (e.g. 'C-a', 'h')."""
+    if output is None:
+        if not inside_tmux():
+            return {}
+        try:
+            result = subprocess.run(
+                ["tmux", "list-keys", "-T", "prefix"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+        except Exception:
+            return {}
+        if result.returncode != 0:
+            return {}
+        output = result.stdout
+
+    bindings: dict[str, list[str]] = {}
+    for line in output.splitlines():
+        m = _BIND_RE.match(line.strip())
+        if not m:
+            continue
+        key, command = m.group(1), m.group(2).strip()
+        canonical = canonical_tmux_command(command)
+        if not canonical:
+            continue
+        bindings.setdefault(canonical, []).append(key)
+    return bindings
+
+
+def apply_tmux_overrides(pack: Pack, *, bindings: dict[str, list[str]] | None = None) -> Pack:
+    """Substitute keys/prefix from the user's live tmux config for matching commands."""
+    if pack.id != "tmux":
+        return pack
+    if bindings is None:
+        bindings = parse_tmux_bindings()
+    if not bindings:
+        return pack
+
+    new_shortcuts = []
+    for shortcut in pack.shortcuts:
+        if shortcut.command and shortcut.command in bindings:
+            new_keys = tuple(tmux_to_keypal_combo(k) for k in bindings[shortcut.command])
+            new_shortcuts.append(replace(shortcut, keys=new_keys))
+        else:
+            new_shortcuts.append(shortcut)
+
+    new_prefix = current_tmux_prefix() or pack.prefix
+    return replace(pack, shortcuts=tuple(new_shortcuts), prefix=new_prefix)
