@@ -4,15 +4,14 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import platformdirs
 from fsrs import Card, ReviewLog
 
 
 def default_data_dir() -> Path:
     if override := os.environ.get("KEYPAL_DATA_DIR"):
         return Path(override)
-    xdg = os.environ.get("XDG_DATA_HOME")
-    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
-    return base / "keypal"
+    return Path(platformdirs.user_data_dir("keypal"))
 
 
 @dataclass

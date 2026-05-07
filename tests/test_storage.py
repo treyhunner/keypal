@@ -8,16 +8,10 @@ def test_default_data_dir_uses_keypal_override(monkeypatch, tmp_path):
     assert default_data_dir() == tmp_path
 
 
-def test_default_data_dir_uses_xdg(monkeypatch, tmp_path):
+def test_default_data_dir_falls_back_to_platformdirs(monkeypatch):
     monkeypatch.delenv("KEYPAL_DATA_DIR", raising=False)
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    assert default_data_dir() == tmp_path / "keypal"
-
-
-def test_default_data_dir_falls_back_to_home(monkeypatch):
-    monkeypatch.delenv("KEYPAL_DATA_DIR", raising=False)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    assert default_data_dir().parts[-3:] == (".local", "share", "keypal")
+    # platformdirs handles XDG_DATA_HOME and platform-specific defaults.
+    assert default_data_dir().name == "keypal"
 
 
 def test_load_cards_returns_empty_when_missing(tmp_path):
