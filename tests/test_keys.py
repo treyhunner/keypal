@@ -75,6 +75,25 @@ def test_matches_without_alias_still_works():
     assert matches("ctrl+a", ["ctrl+a"], {}) is True
 
 
+def test_normalize_symbol_names_become_characters():
+    assert normalize("comma") == ","
+    assert normalize("ctrl+comma") == "ctrl+,"
+    assert normalize("alt+dollar") == "alt+$"
+
+
+def test_matches_comma_name_and_char_equivalent():
+    assert matches("comma", [","]) is True
+    assert matches(",", ["comma"]) is True
+    assert matches("ctrl+comma", ["ctrl+,"]) is True
+
+
+def test_matches_various_symbol_aliases():
+    assert matches("dollar", ["$"]) is True
+    assert matches("backslash", ["\\"]) is True
+    assert matches("ctrl+minus", ["ctrl+-"]) is True
+    assert matches("alt+left_bracket", ["alt+["]) is True
+
+
 def test_prettify_key_modifiers():
     assert prettify_key("ctrl") == "Ctrl"
     assert prettify_key("Alt") == "Alt"

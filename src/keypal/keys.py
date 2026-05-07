@@ -2,6 +2,55 @@ from collections.abc import Iterable, Mapping
 
 MODIFIERS = frozenset({"ctrl", "alt", "shift", "meta", "super"})
 
+# Textual reports symbol keys by name (e.g. event.key="comma" when "," is pressed).
+# Pack TOMLs typically use the character ("ctrl+,"). Canonicalize names → characters
+# so both forms compare equal.
+SYMBOL_NAMES: dict[str, str] = {
+    "comma": ",",
+    "period": ".",
+    "full_stop": ".",
+    "semicolon": ";",
+    "colon": ":",
+    "exclamation_mark": "!",
+    "question_mark": "?",
+    "minus": "-",
+    "hyphen": "-",
+    "plus": "+",
+    "equals": "=",
+    "equals_sign": "=",
+    "asterisk": "*",
+    "slash": "/",
+    "backslash": "\\",
+    "underscore": "_",
+    "tilde": "~",
+    "grave_accent": "`",
+    "caret": "^",
+    "ampersand": "&",
+    "at": "@",
+    "hash": "#",
+    "number_sign": "#",
+    "dollar": "$",
+    "dollar_sign": "$",
+    "percent": "%",
+    "percent_sign": "%",
+    "left_parenthesis": "(",
+    "right_parenthesis": ")",
+    "left_bracket": "[",
+    "right_bracket": "]",
+    "left_brace": "{",
+    "right_brace": "}",
+    "left_curly_bracket": "{",
+    "right_curly_bracket": "}",
+    "less_than_sign": "<",
+    "greater_than_sign": ">",
+    "less_than": "<",
+    "greater_than": ">",
+    "quotation_mark": '"',
+    "apostrophe": "'",
+    "vertical_line": "|",
+    "vertical_bar": "|",
+}
+
 SPECIAL_KEY_NAMES: dict[str, str] = {
     "ctrl": "Ctrl",
     "alt": "Alt",
@@ -31,7 +80,7 @@ def normalize(combo: str) -> str:
     if "" in parts:
         raise ValueError(f"Empty token in key combo {combo!r}")
     modifiers = sorted(p for p in parts if p in MODIFIERS)
-    keys = [p for p in parts if p not in MODIFIERS]
+    keys = [SYMBOL_NAMES.get(p, p) for p in parts if p not in MODIFIERS]
     if len(keys) != 1:
         raise ValueError(f"Expected exactly one non-modifier key in {combo!r}, got {keys}")
     return "+".join([*modifiers, keys[0]])
