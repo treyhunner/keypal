@@ -125,10 +125,15 @@ ListItem.--highlight {
 
 #auto-advance-dots {
     width: 100%;
-    text-align: center;
-    color: $text-muted;
     height: 1;
     margin-top: 1;
+}
+
+#auto-advance-dots .dot {
+    width: 1fr;
+    text-align: center;
+    color: $accent;
+    text-style: bold;
 }
 
 /* === Key chips === */
@@ -472,8 +477,9 @@ class StatsScreen(Screen):
 class QuizScreen(Screen):
     BINDINGS = [("escape", "app.pop_screen", "Back to home")]
 
-    AUTO_ADVANCE_TICKS = 3
+    AUTO_ADVANCE_TICKS = 4  # 4 ticks at 1s each = 3 dots shown then advance
     AUTO_ADVANCE_INTERVAL_S = 1.0
+    DOT_CHAR = "●"
 
     def __init__(self, pack: Pack, storage: Storage) -> None:
         super().__init__()
@@ -503,7 +509,10 @@ class QuizScreen(Screen):
             yield Static("", id="prompt")
             yield KeyCombo(id="your-combo")
             yield Static("", id="verdict")
-            yield Static("", id="auto-advance-dots")
+            with Horizontal(id="auto-advance-dots"):
+                yield Static("", id="dot-1", classes="dot")
+                yield Static("", id="dot-2", classes="dot")
+                yield Static("", id="dot-3", classes="dot")
             yield Static("", id="expected-label")
             yield KeyCombo(id="expected-combo")
             yield Static("", id="hint")
@@ -557,7 +566,6 @@ class QuizScreen(Screen):
         prompt = self.query_one("#prompt", Static)
         your_combo = self.query_one("#your-combo", KeyCombo)
         verdict = self.query_one("#verdict", Static)
-        dots = self.query_one("#auto-advance-dots", Static)
         expected_label = self.query_one("#expected-label", Static)
         expected_combo = self.query_one("#expected-combo", KeyCombo)
         hint = self.query_one("#hint", Static)
@@ -568,7 +576,8 @@ class QuizScreen(Screen):
         verdict.update("")
         verdict.remove_class("correct")
         verdict.remove_class("wrong")
-        dots.update("")
+        for i in (1, 2, 3):
+            self.query_one(f"#dot-{i}", Static).update("")
 
         if shortcut is None:
             progress.update("")
@@ -594,7 +603,9 @@ class QuizScreen(Screen):
             your_combo.set_combo(expected_seq, chip_class="correct")
             verdict.update("Correct")
             verdict.add_class("correct")
-            dots.update((". " * self._auto_advance_step).rstrip())
+            for i in (1, 2, 3):
+                cell = self.query_one(f"#dot-{i}", Static)
+                cell.update(self.DOT_CHAR if self._auto_advance_step >= i else "")
             hint.update("Press Enter to continue")
             return
 
