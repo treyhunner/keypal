@@ -514,9 +514,25 @@ class QuizScreen(Screen):
         self._auto_advance_timer = None
 
     def _expected_seq(self, shortcut: Shortcut) -> list[str]:
+        """Canonical display sequence (first listed key for each position)."""
         if self._pack.prefix:
             return [self._pack.prefix, shortcut.keys[0]]
         return [shortcut.keys[0]]
+
+    def _expected_chord_length(self) -> int:
+        return 2 if self._pack.prefix else 1
+
+    def _match_position(self, position: int, key: str, shortcut: Shortcut) -> bool:
+        """Match a single keypress against any valid value at that chord position."""
+        if self._pack.prefix and position == 0:
+            return matches(key, [self._pack.prefix], self._aliases)
+        # Final position (chord position 1, or single combo position 0): any of shortcut.keys
+        return matches(key, shortcut.keys, self._aliases)
+
+    def _evaluate_chord(self, buffer: list[str], shortcut: Shortcut) -> bool:
+        if len(buffer) != self._expected_chord_length():
+            return False
+        return all(self._match_position(i, key, shortcut) for i, key in enumerate(buffer))
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -666,8 +682,6 @@ class QuizScreen(Screen):
         shortcut = self._current()
         assert shortcut is not None
 
-        expected_seq = self._expected_seq(shortcut)
-
         # "Don't know" = Space at the very start (no chord-progress)
         if event.key == "space" and not self._chord_buffer:
             self._pending_elapsed_ms = self._elapsed_ms()
@@ -678,8 +692,9 @@ class QuizScreen(Screen):
 
         self._chord_buffer.append(event.key)
 
-        # Wrong on first key: complete the attempt as just this key
-        if len(self._chord_buffer) == 1 and not matches(event.key, [expected_seq[0]], self._aliases):
+        # Wrong at the current position: complete the attempt as just what they pressed.
+        position = len(self._chord_buffer) - 1
+        if not self._match_position(position, event.key, shortcut):
             self._pending_elapsed_ms = self._elapsed_ms()
             self._last_pressed_seq = list(self._chord_buffer)
             self._chord_buffer = []
@@ -687,22 +702,17 @@ class QuizScreen(Screen):
             self._render_state()
             return
 
-        # Wait for more keys if chord is incomplete; render progress so user sees their press.
-        if len(self._chord_buffer) < len(expected_seq):
+        # Wait for more keys if chord is incomplete.
+        if len(self._chord_buffer) < self._expected_chord_length():
             self._render_state()
             return
 
-        # Full sequence collected; compare
+        # Full sequence collected and all positions matched — correct.
         self._pending_elapsed_ms = self._elapsed_ms()
-        correct = all(
-            matches(actual, [expected], self._aliases)
-            for actual, expected in zip(self._chord_buffer, expected_seq)
-        )
         self._last_pressed_seq = list(self._chord_buffer)
         self._chord_buffer = []
-        self._state = QuizState.CORRECT_DONE if correct else QuizState.WRONG_PRACTICE
-        if correct:
-            self._start_auto_advance()
+        self._state = QuizState.CORRECT_DONE
+        self._start_auto_advance()
         self._render_state()
 
     def _handle_correct_done(self, event: events.Key) -> None:
@@ -714,12 +724,11 @@ class QuizScreen(Screen):
     def _handle_wrong_practice(self, event: events.Key) -> None:
         shortcut = self._current()
         assert shortcut is not None
-        expected_seq = self._expected_seq(shortcut)
 
         # Empty buffer + Y = "got it right" override
         if not self._chord_buffer and event.key == "y":
             event.stop()
-            self._remember_alias_seq(self._last_pressed_seq, expected_seq)
+            self._remember_alias_seq(self._last_pressed_seq, self._expected_seq(shortcut))
             self._finalize(correct=True)
             return
 
@@ -732,32 +741,23 @@ class QuizScreen(Screen):
         # Otherwise: collect chord keys for retry
         self._chord_buffer.append(event.key)
 
-        # First key wrong on retry: surface what they pressed and reset.
-        if len(self._chord_buffer) == 1 and not matches(event.key, [expected_seq[0]], self._aliases):
+        position = len(self._chord_buffer) - 1
+        if not self._match_position(position, event.key, shortcut):
+            # Wrong key at this position: surface what they pressed and reset buffer.
             self._last_pressed_seq = list(self._chord_buffer)
             self._chord_buffer = []
             self._render_state()
             return
 
         # Need more keys: render progress so user sees their press.
-        if len(self._chord_buffer) < len(expected_seq):
+        if len(self._chord_buffer) < self._expected_chord_length():
             self._render_state()
             return
 
-        # Full sequence collected on retry
-        all_match = all(
-            matches(actual, [expected], self._aliases)
-            for actual, expected in zip(self._chord_buffer, expected_seq)
-        )
-        if all_match:
-            event.stop()
-            self._chord_buffer = []
-            self._finalize(correct=False)  # was wrong on first attempt; just practiced
-        else:
-            # Wrong full chord on retry: replace the displayed attempt with the new one.
-            self._last_pressed_seq = list(self._chord_buffer)
-            self._chord_buffer = []
-            self._render_state()
+        # Full sequence collected on retry — all positions matched.
+        event.stop()
+        self._chord_buffer = []
+        self._finalize(correct=False)  # was wrong on first attempt; just practiced
 
     def _remember_alias_seq(self, pressed_seq: list[str], expected_seq: list[str]) -> None:
         if not pressed_seq or len(pressed_seq) != len(expected_seq):
