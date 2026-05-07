@@ -1,3 +1,6 @@
+import time
+
+from fsrs import Card
 from textual import events
 from textual.app import App, ComposeResult
 from textual.screen import Screen
@@ -5,6 +8,7 @@ from textual.widgets import Footer, Header, Label, ListItem, ListView
 
 from keypal.keys import matches
 from keypal.models import Pack, Shortcut, builtin_packs
+from keypal.scheduler import review
 from keypal.storage import Storage
 
 
@@ -36,18 +40,21 @@ class HomeScreen(Screen):
         pack_id = event.item.id[len(prefix):]
         pack = next((p for p in self._packs if p.id == pack_id), None)
         if pack is not None:
-            self.app.push_screen(QuizScreen(pack))
+            self.app.push_screen(QuizScreen(pack, self.app.storage))
 
 
 class QuizScreen(Screen):
     BINDINGS = [("escape", "app.pop_screen", "Back to home")]
 
-    def __init__(self, pack: Pack) -> None:
+    def __init__(self, pack: Pack, storage: Storage) -> None:
         super().__init__()
         self._pack = pack
+        self._storage = storage
+        self._cards: dict[str, Card] = storage.load_cards()
         self._shortcuts: list[Shortcut] = list(pack.shortcuts)
         self._index = 0
         self._awaiting_continue = False
+        self._start_ns: int | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -77,6 +84,7 @@ class QuizScreen(Screen):
         progress.update(f"Card {self._index + 1} / {len(self._shortcuts)}")
         prompt.update(shortcut.action)
         feedback.update("Press the shortcut...")
+        self._start_ns = time.monotonic_ns()
 
     def on_key(self, event: events.Key) -> None:
         if self._awaiting_continue:
@@ -93,13 +101,25 @@ class QuizScreen(Screen):
         if event.key == "escape":
             return  # let binding handle it
         event.stop()
+
+        elapsed_ms = (time.monotonic_ns() - (self._start_ns or time.monotonic_ns())) // 1_000_000
         correct = matches(event.key, shortcut.keys)
+
+        shortcut_id = self._pack.shortcut_id(shortcut)
+        card = self._cards.get(shortcut_id, Card())
+        updated, log = review(card, correct=correct, response_time_ms=int(elapsed_ms))
+        self._cards[shortcut_id] = updated
+        self._storage.save_cards(self._cards)
+        self._storage.append_review(shortcut_id, log)
+
         feedback = self.query_one("#feedback", Label)
         if correct:
-            feedback.update("Correct! Press Space to continue.")
+            feedback.update(f"Correct ({log.rating.name}). Press Space to continue.")
         else:
             expected = " or ".join(shortcut.keys)
-            feedback.update(f"Wrong (you pressed {event.key!r}; expected {expected}). Press Space to continue.")
+            feedback.update(
+                f"Wrong (you pressed {event.key!r}; expected {expected}). Press Space to continue."
+            )
         self._awaiting_continue = True
 
 
