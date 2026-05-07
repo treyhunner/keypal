@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 import darkdetect
-from fsrs import Card
+from fsrs import Card, State
 from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -21,9 +21,20 @@ Screen {
     align: center middle;
 }
 
-#home-content, #quiz-content {
+#home-content, #quiz-content, #stats-content {
     width: 60;
     max-width: 100%;
+    height: auto;
+}
+
+#stats-title {
+    text-style: bold;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#stats-body {
+    width: 100%;
     height: auto;
 }
 
@@ -155,11 +166,15 @@ class KeyCombo(Horizontal):
 class HomeScreen(Screen):
     BINDINGS = [
         ("q", "app.quit", "Quit"),
+        ("s", "stats", "Stats"),
         ("d", "diagnostics", "Test keys"),
     ]
 
     def action_diagnostics(self) -> None:
         self.app.push_screen(DiagnosticScreen())
+
+    def action_stats(self) -> None:
+        self.app.push_screen(StatsScreen(self._packs, self.app.storage))
 
     def __init__(self, packs: tuple[Pack, ...]) -> None:
         super().__init__()
@@ -241,6 +256,54 @@ class DiagnosticScreen(Screen):
             your_combo.set_combo(event.key)
         except ValueError:
             your_combo.clear()
+
+
+class StatsScreen(Screen):
+    BINDINGS = [("escape", "app.pop_screen", "Back")]
+
+    def __init__(self, packs: tuple[Pack, ...], storage: Storage) -> None:
+        super().__init__()
+        self._packs = packs
+        self._storage = storage
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="stats-content"):
+            yield Static("Stats", id="stats-title")
+            yield Static(self._render_stats(), id="stats-body")
+        yield Footer()
+
+    def _render_stats(self) -> str:
+        cards = self._storage.load_cards()
+        review_count = sum(1 for _ in self._storage.read_reviews())
+        now = datetime.now(timezone.utc)
+
+        state_counts = {state: 0 for state in State}
+        for card in cards.values():
+            state_counts[card.state] = state_counts.get(card.state, 0) + 1
+
+        pack_lines = []
+        for pack in self._packs:
+            tracked = sum(1 for s in pack.shortcuts if pack.shortcut_id(s) in cards)
+            due = sum(
+                1
+                for s in pack.shortcuts
+                if (card := cards.get(pack.shortcut_id(s))) is not None
+                and (card.due is None or card.due <= now)
+            )
+            total = len(pack.shortcuts)
+            pack_lines.append(f"  {pack.name}: {tracked}/{total} tracked, {due} due")
+
+        lines = [
+            f"Reviews completed: {review_count}",
+            "",
+            "Cards by state:",
+            *[f"  {state.name}: {state_counts.get(state, 0)}" for state in State],
+            "",
+            "Per pack:",
+            *pack_lines,
+        ]
+        return "\n".join(lines)
 
 
 class QuizScreen(Screen):
