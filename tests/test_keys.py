@@ -94,6 +94,17 @@ def test_matches_various_symbol_aliases():
     assert matches("alt+left_bracket", ["alt+["]) is True
 
 
+def test_matches_terminal_equivalents():
+    # Terminals encode Ctrl+H as Backspace, Ctrl+I as Tab, etc. — same byte.
+    assert matches("backspace", ["ctrl+h"]) is True
+    assert matches("ctrl+h", ["backspace"]) is True
+    assert matches("tab", ["ctrl+i"]) is True
+    assert matches("enter", ["ctrl+m"]) is True
+    assert matches("escape", ["ctrl+["]) is True
+    # Non-equivalents still don't match
+    assert matches("backspace", ["ctrl+a"]) is False
+
+
 def test_prettify_key_modifiers():
     assert prettify_key("ctrl") == "Ctrl"
     assert prettify_key("Alt") == "Alt"

@@ -86,6 +86,18 @@ def normalize(combo: str) -> str:
     return "+".join([*modifiers, keys[0]])
 
 
+# Terminals encode several Ctrl combos as the same byte as a named key.
+# These are physically indistinguishable to any TUI: pressing Ctrl+H sends
+# 0x08 (Backspace), Ctrl+I sends 0x09 (Tab), Ctrl+M sends 0x0D (Enter),
+# Ctrl+[ sends 0x1B (Escape).
+TERMINAL_EQUIVALENTS: tuple[frozenset[str], ...] = (
+    frozenset({"ctrl+h", "backspace"}),
+    frozenset({"ctrl+i", "tab"}),
+    frozenset({"ctrl+m", "enter"}),
+    frozenset({"ctrl+[", "escape"}),
+)
+
+
 def matches(
     pressed: str,
     expected: Iterable[str],
@@ -98,6 +110,9 @@ def matches(
     expected_set = {normalize(e) for e in expected}
     if normalized_pressed in expected_set:
         return True
+    for group in TERMINAL_EQUIVALENTS:
+        if normalized_pressed in group and group & expected_set:
+            return True
     if aliases:
         for exp in expected_set:
             for alias in aliases.get(exp, []):
