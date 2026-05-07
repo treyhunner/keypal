@@ -2,6 +2,29 @@ from collections.abc import Iterable
 
 MODIFIERS = frozenset({"ctrl", "alt", "shift", "meta", "super"})
 
+SPECIAL_KEY_NAMES: dict[str, str] = {
+    "ctrl": "Ctrl",
+    "alt": "Alt",
+    "shift": "Shift",
+    "meta": "Meta",
+    "super": "Super",
+    "space": "Space",
+    "enter": "Enter",
+    "tab": "Tab",
+    "escape": "Esc",
+    "backspace": "Backspace",
+    "delete": "Del",
+    "left": "←",
+    "right": "→",
+    "up": "↑",
+    "down": "↓",
+    "page_up": "Page Up",
+    "page_down": "Page Down",
+    "home": "Home",
+    "end": "End",
+    "insert": "Ins",
+}
+
 
 def normalize(combo: str) -> str:
     parts = [part.strip().lower() for part in combo.strip().split("+")]
@@ -16,3 +39,18 @@ def normalize(combo: str) -> str:
 
 def matches(pressed: str, expected: Iterable[str]) -> bool:
     return normalize(pressed) in {normalize(e) for e in expected}
+
+
+def prettify_key(token: str) -> str:
+    token = token.strip().lower()
+    if token in SPECIAL_KEY_NAMES:
+        return SPECIAL_KEY_NAMES[token]
+    if token.startswith("f") and token[1:].isdigit():
+        return token.upper()
+    if len(token) == 1:
+        return token.upper()
+    return token.replace("_", " ").title()
+
+
+def prettify_combo(combo: str) -> list[str]:
+    return [prettify_key(part) for part in normalize(combo).split("+")]

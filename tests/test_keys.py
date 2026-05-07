@@ -1,6 +1,6 @@
 import pytest
 
-from keypal.keys import matches, normalize
+from keypal.keys import matches, normalize, prettify_combo, prettify_key
 
 
 def test_normalize_lowercases():
@@ -52,3 +52,37 @@ def test_matches_multiple_expected():
 
 def test_matches_normalizes_both_sides():
     assert matches("SHIFT+CTRL+LEFT", ["ctrl+shift+left"])
+
+
+def test_prettify_key_modifiers():
+    assert prettify_key("ctrl") == "Ctrl"
+    assert prettify_key("Alt") == "Alt"
+    assert prettify_key("shift") == "Shift"
+
+
+def test_prettify_key_letters():
+    assert prettify_key("a") == "A"
+    assert prettify_key("Z") == "Z"
+
+
+def test_prettify_key_function_keys():
+    assert prettify_key("f1") == "F1"
+    assert prettify_key("F10") == "F10"
+
+
+def test_prettify_key_special():
+    assert prettify_key("space") == "Space"
+    assert prettify_key("escape") == "Esc"
+    assert prettify_key("left") == "←"
+    assert prettify_key("page_up") == "Page Up"
+
+
+def test_prettify_key_unknown_falls_back():
+    assert prettify_key("nonsense") == "Nonsense"
+    assert prettify_key("foo_bar") == "Foo Bar"
+
+
+def test_prettify_combo():
+    assert prettify_combo("ctrl+a") == ["Ctrl", "A"]
+    assert prettify_combo("Shift+Ctrl+Left") == ["Ctrl", "Shift", "←"]
+    assert prettify_combo("alt+backspace") == ["Alt", "Backspace"]
