@@ -4,13 +4,138 @@ import darkdetect
 from fsrs import Card
 from textual import events
 from textual.app import App, ComposeResult
+from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Label, ListItem, ListView
+from textual.widgets import Footer, Header, ListItem, ListView, Static
 
-from keypal.keys import matches
+from keypal.keys import matches, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import review
 from keypal.storage import Storage
+
+
+CSS = """
+Screen {
+    align: center middle;
+}
+
+#home-content, #quiz-content {
+    width: auto;
+    height: auto;
+    align: center middle;
+}
+
+#home-prompt, #progress, #prompt, #verdict, #hint, #expected-label {
+    width: auto;
+    text-align: center;
+}
+
+#progress {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+#prompt {
+    text-style: bold;
+    margin-bottom: 2;
+}
+
+#verdict {
+    text-style: bold;
+    margin-top: 1;
+}
+
+#verdict.correct {
+    color: $success;
+}
+
+#verdict.wrong {
+    color: $error;
+}
+
+#expected-label {
+    color: $text-muted;
+    margin-top: 1;
+}
+
+#hint {
+    color: $text-muted;
+    margin-top: 2;
+}
+
+#home-prompt {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+KeyCombo {
+    width: auto;
+    height: auto;
+    align: center middle;
+}
+
+KeyChip {
+    border: round $primary;
+    padding: 0 1;
+    height: 3;
+    width: auto;
+    color: $primary;
+    background: $surface;
+}
+
+KeyChip.correct {
+    border: round $success;
+    color: $success;
+}
+
+KeyChip.wrong {
+    border: round $error;
+    color: $error;
+}
+
+.key-plus {
+    width: auto;
+    height: 3;
+    content-align: center middle;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+.hidden {
+    display: none;
+}
+
+ListView {
+    width: 60;
+    height: auto;
+    border: round $primary;
+}
+
+ListItem {
+    padding: 0 2;
+}
+"""
+
+
+class KeyChip(Static):
+    pass
+
+
+class KeyCombo(Horizontal):
+    def set_combo(self, combo: str, *, chip_class: str = "") -> None:
+        self.remove_children()
+        widgets = []
+        for i, part in enumerate(prettify_combo(combo)):
+            if i > 0:
+                widgets.append(Static("+", classes="key-plus"))
+            chip = KeyChip(part)
+            if chip_class:
+                chip.add_class(chip_class)
+            widgets.append(chip)
+        self.mount(*widgets)
+
+    def clear(self) -> None:
+        self.remove_children()
 
 
 class HomeScreen(Screen):
@@ -22,16 +147,17 @@ class HomeScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Label("Choose a pack to review:", id="prompt")
-        yield ListView(
-            *(
-                ListItem(
-                    Label(f"{pack.name} — {len(pack.shortcuts)} shortcuts"),
-                    id=f"pack-{pack.id}",
+        with Vertical(id="home-content"):
+            yield Static("Choose a pack to practice", id="home-prompt")
+            yield ListView(
+                *(
+                    ListItem(
+                        Static(f"{pack.name} — {len(pack.shortcuts)} shortcuts"),
+                        id=f"pack-{pack.id}",
+                    )
+                    for pack in self._packs
                 )
-                for pack in self._packs
             )
-        )
         yield Footer()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -59,9 +185,14 @@ class QuizScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Label("", id="progress")
-        yield Label("", id="prompt")
-        yield Label("", id="feedback")
+        with Vertical(id="quiz-content"):
+            yield Static("", id="progress")
+            yield Static("", id="prompt")
+            yield KeyCombo(id="your-combo")
+            yield Static("", id="verdict")
+            yield Static("Try this:", id="expected-label", classes="hidden")
+            yield KeyCombo(id="expected-combo")
+            yield Static("", id="hint")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -74,17 +205,31 @@ class QuizScreen(Screen):
 
     def _render_prompt(self) -> None:
         shortcut = self._current()
-        progress = self.query_one("#progress", Label)
-        prompt = self.query_one("#prompt", Label)
-        feedback = self.query_one("#feedback", Label)
+        progress = self.query_one("#progress", Static)
+        prompt = self.query_one("#prompt", Static)
+        verdict = self.query_one("#verdict", Static)
+        hint = self.query_one("#hint", Static)
+        your_combo = self.query_one("#your-combo", KeyCombo)
+        expected_combo = self.query_one("#expected-combo", KeyCombo)
+        expected_label = self.query_one("#expected-label", Static)
+
+        # Reset answer area
+        your_combo.clear()
+        expected_combo.clear()
+        expected_label.add_class("hidden")
+        verdict.update("")
+        verdict.remove_class("correct")
+        verdict.remove_class("wrong")
+
         if shortcut is None:
             progress.update("")
-            prompt.update("Session complete. Press Esc to return.")
-            feedback.update("")
+            prompt.update("Session complete")
+            hint.update("Press Esc to return")
             return
-        progress.update(f"Card {self._index + 1} / {len(self._shortcuts)}")
+
+        progress.update(f"{self._index + 1} / {len(self._shortcuts)}")
         prompt.update(shortcut.action)
-        feedback.update("Press the shortcut...")
+        hint.update("Press the shortcut")
         self._start_ns = time.monotonic_ns()
 
     def on_key(self, event: events.Key) -> None:
@@ -113,19 +258,30 @@ class QuizScreen(Screen):
         self._storage.save_cards(self._cards)
         self._storage.append_review(shortcut_id, log)
 
-        feedback = self.query_one("#feedback", Label)
+        your_combo = self.query_one("#your-combo", KeyCombo)
+        verdict = self.query_one("#verdict", Static)
+        hint = self.query_one("#hint", Static)
+        your_combo.set_combo(event.key, chip_class="correct" if correct else "wrong")
+
         if correct:
-            feedback.update(f"Correct ({log.rating.name}). Press Space to continue.")
+            verdict.update("Correct")
+            verdict.add_class("correct")
         else:
-            expected = " or ".join(shortcut.keys)
-            feedback.update(
-                f"Wrong (you pressed {event.key!r}; expected {expected}). Press Space to continue."
-            )
+            verdict.update("Wrong")
+            verdict.add_class("wrong")
+            expected_label = self.query_one("#expected-label", Static)
+            expected_combo = self.query_one("#expected-combo", KeyCombo)
+            expected_label.remove_class("hidden")
+            # Show first expected combo (could show all eventually)
+            expected_combo.set_combo(shortcut.keys[0], chip_class="correct")
+
+        hint.update("Press Space to continue")
         self._awaiting_continue = True
 
 
 class KeypalApp(App):
     TITLE = "keypal"
+    CSS = CSS
 
     def __init__(self) -> None:
         super().__init__()
