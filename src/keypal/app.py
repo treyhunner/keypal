@@ -727,6 +727,7 @@ class QuizScreen(Screen):
 class KeypalApp(App):
     TITLE = "keypal"
     CSS = CSS
+    ENABLE_COMMAND_PALETTE = False  # don't steal Ctrl+P from quiz capture
 
     def __init__(self) -> None:
         super().__init__()
