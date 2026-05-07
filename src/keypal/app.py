@@ -11,7 +11,7 @@ from textual.widgets import Footer, Header, ListItem, ListView, Static
 
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
-from keypal.scheduler import review
+from keypal.scheduler import review, select_session
 from keypal.storage import Storage
 
 
@@ -226,7 +226,7 @@ class QuizScreen(Screen):
         self._storage = storage
         self._cards: dict[str, Card] = storage.load_cards()
         self._aliases: dict[str, set[str]] = storage.load_aliases()
-        self._shortcuts: list[Shortcut] = list(pack.shortcuts)
+        self._shortcuts: list[Shortcut] = select_session(pack, self._cards)
         self._index = 0
         self._state: QuizState = QuizState.ASKING
         self._start_ns: int | None = None
