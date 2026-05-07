@@ -9,7 +9,7 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen, Screen
-from textual.widgets import Footer, Header, ListItem, ListView, Static
+from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
 
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
@@ -185,51 +185,72 @@ class KeyCombo(Horizontal):
 
 class ConfirmSwapModal(ModalScreen[bool]):
     BINDINGS = [
-        ("y", "confirm", "Yes"),
-        ("n", "cancel", "No"),
-        ("escape", "cancel", "Cancel"),
+        ("y,enter", "confirm", "Yes"),
+        ("n,escape", "cancel", "No"),
     ]
 
     DEFAULT_CSS = """
     ConfirmSwapModal {
         align: center middle;
+        background: black 40%;
     }
 
     #modal-content {
-        width: 60;
-        max-width: 100%;
+        width: 64;
+        max-width: 90%;
+        height: auto;
         padding: 1 2;
-        border: thick $primary;
+        border: thick $accent;
         background: $surface;
     }
 
-    .modal-text {
-        width: 100%;
-        margin-bottom: 1;
+    #modal-title {
+        text-style: bold;
+        color: $warning;
         text-align: center;
+        margin-bottom: 1;
     }
 
-    .modal-warning {
-        color: $warning;
-        text-style: bold;
+    #modal-message {
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    #modal-buttons {
+        width: 100%;
+        height: 3;
+        align-horizontal: center;
+        margin-top: 1;
+    }
+
+    #modal-buttons Button {
+        margin: 0 1;
     }
     """
 
     def compose(self) -> ComposeResult:
         with Vertical(id="modal-content"):
-            yield Static("This pack uses your tmux prefix.", classes="modal-text modal-warning")
+            yield Static("This pack uses your tmux prefix", id="modal-title")
             yield Static(
                 "Continuing will disable your tmux prefix until you leave this pack. "
                 "tmux navigation (switching windows, sessions, panes) will not work.",
-                classes="modal-text",
+                id="modal-message",
             )
-            yield Static("Press Y to continue, N or Esc to cancel.", classes="modal-text")
+            with Horizontal(id="modal-buttons"):
+                yield Button("Continue", id="confirm-btn", variant="primary")
+                yield Button("Cancel", id="cancel-btn")
 
     def action_confirm(self) -> None:
         self.dismiss(True)
 
     def action_cancel(self) -> None:
         self.dismiss(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "confirm-btn":
+            self.dismiss(True)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(False)
 
 
 class HomeScreen(Screen):
