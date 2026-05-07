@@ -94,6 +94,14 @@ def test_matches_various_symbol_aliases():
     assert matches("alt+left_bracket", ["alt+["]) is True
 
 
+def test_keys_by_simplicity_orders_by_modifiers_then_length():
+    from keypal.keys import keys_by_simplicity
+
+    assert keys_by_simplicity(["ctrl+h", "h", "left"]) == ["h", "left", "ctrl+h"]
+    assert keys_by_simplicity(["ctrl+a", "a"]) == ["a", "ctrl+a"]
+    assert keys_by_simplicity(["alt+f", "ctrl+right"]) == ["alt+f", "ctrl+right"]
+
+
 def test_matches_terminal_equivalents():
     # Terminals encode Ctrl+H as Backspace, Ctrl+I as Tab, etc. — same byte.
     assert matches("backspace", ["ctrl+h"]) is True

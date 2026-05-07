@@ -3,6 +3,7 @@ import re
 import subprocess
 from dataclasses import replace
 
+from keypal.keys import keys_by_simplicity
 from keypal.models import Pack
 
 
@@ -156,7 +157,8 @@ def apply_tmux_overrides(pack: Pack, *, bindings: dict[str, list[str]] | None = 
     new_shortcuts = []
     for shortcut in pack.shortcuts:
         if shortcut.command and shortcut.command in bindings:
-            new_keys = tuple(tmux_to_keypal_combo(k) for k in bindings[shortcut.command])
+            converted = [tmux_to_keypal_combo(k) for k in bindings[shortcut.command]]
+            new_keys = tuple(keys_by_simplicity(converted))
             new_shortcuts.append(replace(shortcut, keys=new_keys))
         else:
             new_shortcuts.append(shortcut)

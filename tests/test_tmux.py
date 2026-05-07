@@ -76,8 +76,9 @@ def test_apply_tmux_overrides_substitutes_keys_for_matching_commands():
         "select-pane -L": ["C-h", "h"],
     }
     result = apply_tmux_overrides(pack, bindings=bindings)
-    assert result.shortcuts[0].keys == ("ctrl+n", "n")
-    assert result.shortcuts[1].keys == ("ctrl+h", "h")
+    # Keys are sorted by simplicity (fewer modifiers first, then shorter).
+    assert result.shortcuts[0].keys == ("n", "ctrl+n")
+    assert result.shortcuts[1].keys == ("h", "ctrl+h")
     assert result.shortcuts[2].keys == ("x",)  # unmatched stays
 
 

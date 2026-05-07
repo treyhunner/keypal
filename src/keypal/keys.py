@@ -137,3 +137,17 @@ def prettify_key(token: str) -> str:
 
 def prettify_combo(combo: str) -> list[str]:
     return [prettify_key(part) for part in normalize(combo).split("+")]
+
+
+def keys_by_simplicity(keys: Iterable[str]) -> list[str]:
+    """Sort keys so simpler ones come first: fewer modifiers, then shorter."""
+
+    def rank(k: str) -> tuple[int, int]:
+        try:
+            parts = normalize(k).split("+")
+        except ValueError:
+            return (10, len(k))
+        modifier_count = sum(1 for p in parts if p in MODIFIERS)
+        return (modifier_count, len(k))
+
+    return sorted(keys, key=rank)

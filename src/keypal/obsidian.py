@@ -3,6 +3,7 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
+from keypal.keys import keys_by_simplicity
 from keypal.models import Pack
 
 
@@ -93,7 +94,8 @@ def apply_obsidian_overrides(pack: Pack, *, hotkeys: dict[str, list[str]] | None
     new_shortcuts = []
     for shortcut in pack.shortcuts:
         if shortcut.command and shortcut.command in hotkeys:
-            new_shortcuts.append(replace(shortcut, keys=tuple(hotkeys[shortcut.command])))
+            new_keys = tuple(keys_by_simplicity(hotkeys[shortcut.command]))
+            new_shortcuts.append(replace(shortcut, keys=new_keys))
         else:
             new_shortcuts.append(shortcut)
     return replace(pack, shortcuts=tuple(new_shortcuts))
