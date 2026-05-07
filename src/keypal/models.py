@@ -1,5 +1,6 @@
 import tomllib
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -47,3 +48,13 @@ def parse_pack(data: dict[str, Any]) -> Pack:
 def load_pack(path: Path) -> Pack:
     with path.open("rb") as f:
         return parse_pack(tomllib.load(f))
+
+
+def builtin_packs() -> tuple[Pack, ...]:
+    package = resources.files("keypal.packs")
+    packs = []
+    for entry in package.iterdir():
+        if entry.name.endswith(".toml"):
+            with entry.open("rb") as f:
+                packs.append(parse_pack(tomllib.load(f)))
+    return tuple(packs)

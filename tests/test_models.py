@@ -1,4 +1,4 @@
-from keypal.models import Pack, Shortcut, load_pack, parse_pack
+from keypal.models import Pack, Shortcut, builtin_packs, load_pack, parse_pack
 
 
 def test_parse_pack_minimal():
@@ -64,6 +64,15 @@ keys = ["ctrl+f"]
     pack = load_pack(path)
     assert pack.id == "x"
     assert pack.shortcuts[0].action == "Foo"
+
+
+def test_builtin_packs_includes_readline():
+    packs = builtin_packs()
+    by_id = {pack.id: pack for pack in packs}
+    assert "readline" in by_id
+    readline = by_id["readline"]
+    assert readline.name == "Readline / Bash"
+    assert any(s.action == "Move to start of line" for s in readline.shortcuts)
 
 
 def test_shortcut_id_format():
