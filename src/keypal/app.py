@@ -609,7 +609,7 @@ class QuizScreen(Screen):
                 your_combo.set_combo(list(self._chord_buffer))
                 hint.update("Now press the next key…")
             else:
-                hint.update("Press the shortcut · Space if you don't know")
+                hint.update("Press the shortcut · Space if you don't know · F4 to skip forever")
             return
 
         expected_seq = self._expected_seq(shortcut)
@@ -622,7 +622,7 @@ class QuizScreen(Screen):
             for i in (1, 2, 3):
                 cell = self.query_one(f"#dot-{i}", Static)
                 cell.update(self.DOT_CHAR if self._auto_advance_step >= i else "")
-            hint.update("Press Enter to continue")
+            hint.update("Press Enter to continue · F4 to skip forever")
             return
 
         # WRONG_PRACTICE
@@ -636,7 +636,7 @@ class QuizScreen(Screen):
         else:
             if self._last_pressed_seq:
                 your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
-            hint.update("Press the shortcut · Y if you actually had it · Enter to skip")
+            hint.update("Y if you had it · Enter to skip once · F4 to skip forever")
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
