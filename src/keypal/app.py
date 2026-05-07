@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timezone
 from enum import Enum
 
 import darkdetect
@@ -171,13 +172,38 @@ class HomeScreen(Screen):
             yield ListView(
                 *(
                     ListItem(
-                        Static(f"{pack.name} — {len(pack.shortcuts)} shortcuts"),
+                        Static(self._pack_summary(pack), classes="pack-summary"),
                         id=f"pack-{pack.id}",
                     )
                     for pack in self._packs
                 )
             )
         yield Footer()
+
+    def on_screen_resume(self) -> None:
+        for pack in self._packs:
+            label = self.query_one(f"#pack-{pack.id} .pack-summary", Static)
+            label.update(self._pack_summary(pack))
+
+    def _pack_summary(self, pack: Pack) -> str:
+        cards = self.app.storage.load_cards()
+        now = datetime.now(timezone.utc)
+        due = 0
+        new = 0
+        for shortcut in pack.shortcuts:
+            card = cards.get(pack.shortcut_id(shortcut))
+            if card is None:
+                new += 1
+            elif card.due is None or card.due <= now:
+                due += 1
+        if due == 0 and new == 0:
+            return f"{pack.name} — all caught up"
+        parts = []
+        if due:
+            parts.append(f"{due} due")
+        if new:
+            parts.append(f"{new} new")
+        return f"{pack.name} — " + " · ".join(parts)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         prefix = "pack-"
