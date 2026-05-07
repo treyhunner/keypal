@@ -31,6 +31,10 @@ class Storage:
     def aliases_path(self) -> Path:
         return self.base_dir / "aliases.json"
 
+    @property
+    def disabled_path(self) -> Path:
+        return self.base_dir / "disabled.json"
+
     def load_cards(self) -> dict[str, Card]:
         if not self.cards_path.exists():
             return {}
@@ -68,3 +72,12 @@ class Storage:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         serialized = {expected: sorted(pressed) for expected, pressed in aliases.items()}
         self.aliases_path.write_text(json.dumps(serialized, indent=2) + "\n")
+
+    def load_disabled(self) -> set[str]:
+        if not self.disabled_path.exists():
+            return set()
+        return set(json.loads(self.disabled_path.read_text()))
+
+    def save_disabled(self, disabled: set[str]) -> None:
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.disabled_path.write_text(json.dumps(sorted(disabled), indent=2) + "\n")

@@ -62,3 +62,15 @@ def test_aliases_roundtrip(tmp_path):
     aliases = {"alt+f": {"ctrl+right"}, "alt+b": {"ctrl+left"}}
     storage.save_aliases(aliases)
     assert storage.load_aliases() == aliases
+
+
+def test_disabled_empty_when_missing(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    assert storage.load_disabled() == set()
+
+
+def test_disabled_roundtrip(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    disabled = {"obsidian:Open graph view", "tmux:Layout: tiled"}
+    storage.save_disabled(disabled)
+    assert storage.load_disabled() == disabled
