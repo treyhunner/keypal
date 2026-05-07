@@ -75,15 +75,35 @@ SPECIAL_KEY_NAMES: dict[str, str] = {
 }
 
 
+_PLUS_KEY_SENTINEL = "\x00plus\x00"
+
+
 def normalize(combo: str) -> str:
-    parts = [part.strip().lower() for part in combo.strip().split("+")]
+    s = combo.strip().lower()
+    # "+" is both the separator and a valid key. Detect plus-as-key cases
+    # ("+", "ctrl++", etc.) by substituting a sentinel before splitting.
+    if s == "+":
+        s = _PLUS_KEY_SENTINEL
+    elif s.endswith("++"):
+        s = s[:-1] + _PLUS_KEY_SENTINEL
+    parts = [part.strip() for part in s.split("+")]
     if "" in parts:
         raise ValueError(f"Empty token in key combo {combo!r}")
+    parts = ["+" if p == _PLUS_KEY_SENTINEL else p for p in parts]
     modifiers = sorted(p for p in parts if p in MODIFIERS)
     keys = [SYMBOL_NAMES.get(p, p) for p in parts if p not in MODIFIERS]
     if len(keys) != 1:
         raise ValueError(f"Expected exactly one non-modifier key in {combo!r}, got {keys}")
     return "+".join([*modifiers, keys[0]])
+
+
+def _split_normalized(normalized: str) -> list[str]:
+    """Split a normalized combo into tokens, treating '+' as a key when needed."""
+    if normalized == "+":
+        return ["+"]
+    if normalized.endswith("++"):
+        return [p for p in normalized[:-1].split("+") if p] + ["+"]
+    return normalized.split("+")
 
 
 # Terminals encode several Ctrl combos as the same byte as a named key.
@@ -136,7 +156,7 @@ def prettify_key(token: str) -> str:
 
 
 def prettify_combo(combo: str) -> list[str]:
-    return [prettify_key(part) for part in normalize(combo).split("+")]
+    return [prettify_key(part) for part in _split_normalized(normalize(combo))]
 
 
 def keys_by_simplicity(keys: Iterable[str]) -> list[str]:
@@ -144,7 +164,7 @@ def keys_by_simplicity(keys: Iterable[str]) -> list[str]:
 
     def rank(k: str) -> tuple[int, int]:
         try:
-            parts = normalize(k).split("+")
+            parts = _split_normalized(normalize(k))
         except ValueError:
             return (10, len(k))
         modifier_count = sum(1 for p in parts if p in MODIFIERS)

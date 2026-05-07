@@ -81,6 +81,26 @@ def test_normalize_symbol_names_become_characters():
     assert normalize("alt+dollar") == "alt+$"
 
 
+def test_normalize_plus_as_key():
+    assert normalize("+") == "+"
+    assert normalize("plus") == "+"
+    assert normalize("ctrl++") == "ctrl++"
+    assert normalize("alt+plus") == "alt++"
+
+
+def test_matches_plus_key():
+    assert matches("+", ["+"]) is True
+    assert matches("plus", ["+"]) is True
+    assert matches("ctrl++", ["ctrl++"]) is True
+
+
+def test_prettify_combo_plus_key():
+    from keypal.keys import prettify_combo as pc
+    assert pc("+") == ["+"]
+    assert pc("ctrl++") == ["Ctrl", "+"]
+    assert pc("alt+plus") == ["Alt", "+"]
+
+
 def test_matches_comma_name_and_char_equivalent():
     assert matches("comma", [","]) is True
     assert matches(",", ["comma"]) is True
