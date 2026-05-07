@@ -14,7 +14,7 @@ from keypal.storage import Storage
 
 
 class HomeScreen(Screen):
-    BINDINGS = [("q", "quit", "Quit")]
+    BINDINGS = [("q", "app.quit", "Quit")]
 
     def __init__(self, packs: tuple[Pack, ...]) -> None:
         super().__init__()
