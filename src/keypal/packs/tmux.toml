@@ -1,7 +1,7 @@
 [pack]
 id = "tmux"
 name = "tmux"
-description = "tmux shortcuts (after the prefix). Reflects Trey's custom config."
+description = "tmux shortcuts (after the prefix). Customs are read live from your tmux config."
 prefix = "ctrl+a"
 
 
@@ -11,64 +11,76 @@ prefix = "ctrl+a"
 action = "Next window"
 keys = ["n"]
 tags = ["windows"]
+command = "next-window"
 
 [[shortcuts]]
 action = "Previous window"
 keys = ["p"]
 tags = ["windows"]
+command = "previous-window"
 
 [[shortcuts]]
 action = "Last (most recent) window"
 keys = ["a"]
 tags = ["windows"]
+command = "last-window"
 
 [[shortcuts]]
 action = "New window in current directory"
 keys = ["c"]
 tags = ["windows"]
+command = "new-window"
 
 [[shortcuts]]
 action = "Rename window"
 keys = [","]
 tags = ["windows"]
+command = "command-prompt"
 
 [[shortcuts]]
 action = "Find window by name"
 keys = ["f"]
 tags = ["windows"]
+command = "find-window"
 
 [[shortcuts]]
 action = "Show window/session tree picker"
 keys = ["w"]
 tags = ["windows"]
+command = "choose-tree"
 
 [[shortcuts]]
 action = "Kill window"
 keys = ["&"]
 tags = ["windows"]
+command = "confirm-before kill-window"
 
 
-# === Pane navigation (vim-style customs) ===
+# === Pane navigation ===
 
 [[shortcuts]]
 action = "Select pane to the left"
 keys = ["h"]
 tags = ["panes", "navigation"]
+command = "select-pane -L"
 
 [[shortcuts]]
 action = "Select pane below"
 keys = ["j"]
 tags = ["panes", "navigation"]
+command = "select-pane -D"
 
 [[shortcuts]]
 action = "Select pane above"
 keys = ["k"]
 tags = ["panes", "navigation"]
+command = "select-pane -U"
 
 [[shortcuts]]
 action = "Select pane to the right"
 keys = ["l"]
 tags = ["panes", "navigation"]
+command = "select-pane -R"
 
 
 # === Pane management ===
@@ -77,49 +89,58 @@ tags = ["panes", "navigation"]
 action = "Split pane horizontally (side-by-side)"
 keys = ["|"]
 tags = ["panes", "layout"]
+command = "split-window -h"
 
 [[shortcuts]]
 action = "Split pane vertically (stacked)"
 keys = ["-"]
 tags = ["panes", "layout"]
+command = "split-window -v"
 
 [[shortcuts]]
 action = "Kill the current pane"
 keys = ["x"]
 tags = ["panes"]
+command = "confirm-before kill-pane"
 
 [[shortcuts]]
 action = "Show pane numbers (then press one to jump)"
 keys = ["q"]
 tags = ["panes"]
+command = "display-panes"
 
 [[shortcuts]]
 action = "Cycle to next layout"
 keys = ["space"]
 tags = ["panes", "layout"]
+command = "next-layout"
 
 
-# === Pane resize (with -r repeat: hold prefix once, then repeat) ===
+# === Pane resize ===
 
 [[shortcuts]]
 action = "Resize pane left"
 keys = ["H"]
 tags = ["panes", "resize"]
+command = "resize-pane -L"
 
 [[shortcuts]]
 action = "Resize pane down"
 keys = ["J"]
 tags = ["panes", "resize"]
+command = "resize-pane -D"
 
 [[shortcuts]]
 action = "Resize pane up"
 keys = ["K"]
 tags = ["panes", "resize"]
+command = "resize-pane -U"
 
 [[shortcuts]]
 action = "Resize pane right"
 keys = ["L"]
 tags = ["panes", "resize"]
+command = "resize-pane -R"
 
 
 # === Sessions ===
@@ -128,16 +149,19 @@ tags = ["panes", "resize"]
 action = "Detach from session"
 keys = ["d"]
 tags = ["sessions"]
+command = "detach-client"
 
 [[shortcuts]]
 action = "Choose session"
 keys = ["s"]
 tags = ["sessions"]
+command = "choose-tree -Zs"
 
 [[shortcuts]]
 action = "Rename session"
 keys = ["$"]
 tags = ["sessions"]
+command = "rename-session"
 
 
 # === Modes ===
@@ -146,16 +170,19 @@ tags = ["sessions"]
 action = "Enter copy mode"
 keys = ["["]
 tags = ["copy"]
+command = "copy-mode"
 
 [[shortcuts]]
 action = "Paste most recent buffer"
 keys = ["]"]
 tags = ["copy"]
+command = "paste-buffer"
 
 [[shortcuts]]
 action = "Open command prompt"
 keys = [":"]
 tags = ["meta"]
+command = "command-prompt"
 
 [[shortcuts]]
 action = "Reload tmux config"
@@ -163,29 +190,34 @@ keys = ["R"]
 tags = ["meta"]
 
 
-# === Layouts (Alt + 1..5) ===
+# === Layouts ===
 
 [[shortcuts]]
 action = "Layout: even-horizontal"
 keys = ["alt+1"]
 tags = ["layout"]
+command = "select-layout even-horizontal"
 
 [[shortcuts]]
 action = "Layout: even-vertical"
 keys = ["alt+2"]
 tags = ["layout"]
+command = "select-layout even-vertical"
 
 [[shortcuts]]
 action = "Layout: main-horizontal"
 keys = ["alt+3"]
 tags = ["layout"]
+command = "select-layout main-horizontal"
 
 [[shortcuts]]
 action = "Layout: main-vertical"
 keys = ["alt+4"]
 tags = ["layout"]
+command = "select-layout main-vertical"
 
 [[shortcuts]]
 action = "Layout: tiled"
 keys = ["alt+5"]
 tags = ["layout"]
+command = "select-layout tiled"
