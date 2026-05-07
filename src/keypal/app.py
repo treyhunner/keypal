@@ -290,8 +290,8 @@ class QuizScreen(Screen):
             return
 
         if self._state is QuizState.CORRECT_DONE:
-            assert self._last_pressed is not None
-            your_combo.set_combo(self._last_pressed, chip_class="correct")
+            # Show the canonical pack combo, not whatever raw key Textual saw.
+            your_combo.set_combo(shortcut.keys[0], chip_class="correct")
             verdict.update("Correct")
             verdict.add_class("correct")
             hint.update("Press Enter to continue")
