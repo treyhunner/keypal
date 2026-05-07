@@ -3,7 +3,14 @@ from datetime import datetime, timedelta, timezone
 from fsrs import Card, Rating
 
 from keypal.models import Pack, Shortcut
-from keypal.scheduler import FAST_MS, SLOW_MS, classify, review, select_session
+from keypal.scheduler import (
+    FAST_MS,
+    SLOW_MS,
+    classify,
+    review,
+    review_with_rating,
+    select_session,
+)
 
 
 def test_classify_incorrect_is_again():
@@ -36,6 +43,12 @@ def test_review_returns_updated_card_and_log():
 def test_review_incorrect_logs_again():
     _, log = review(Card(), correct=False, response_time_ms=500)
     assert log.rating == Rating.Again
+
+
+def test_review_with_rating_records_given_rating():
+    for rating in (Rating.Again, Rating.Hard, Rating.Good, Rating.Easy):
+        _, log = review_with_rating(Card(), rating)
+        assert log.rating == rating
 
 
 def _shortcut(action: str) -> Shortcut:
