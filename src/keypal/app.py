@@ -24,23 +24,62 @@ Screen {
 }
 
 #home-content, #quiz-content, #stats-content {
-    width: 60;
+    width: 64;
     max-width: 100%;
     height: auto;
 }
 
-#stats-title {
-    text-style: bold;
+/* === Home === */
+
+#home-prompt {
+    width: 100%;
     text-align: center;
+    text-style: bold;
+    color: $accent;
     margin-bottom: 1;
 }
 
-#stats-body {
+ListView {
     width: 100%;
     height: auto;
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
-#home-prompt, #progress, #prompt, #verdict, #hint, #expected-label {
+ListItem {
+    padding: 1 2;
+    height: auto;
+    background: $surface;
+    margin-bottom: 1;
+    border-left: thick $surface;
+}
+
+ListItem.--highlight {
+    background: $boost;
+    border-left: thick $accent;
+}
+
+.pack-name {
+    width: 100%;
+    text-style: bold;
+    color: $accent;
+}
+
+.pack-desc {
+    width: 100%;
+    color: $text-muted;
+}
+
+.pack-summary {
+    width: 100%;
+    color: $primary;
+    margin-top: 1;
+}
+
+/* === Quiz === */
+
+#progress, #prompt, #verdict, #hint, #expected-label {
     width: 100%;
     text-align: center;
 }
@@ -53,6 +92,7 @@ Screen {
 
 #prompt {
     text-style: bold;
+    color: $accent;
     height: 1;
     margin-bottom: 2;
 }
@@ -83,10 +123,7 @@ Screen {
     margin-top: 2;
 }
 
-#home-prompt {
-    text-style: bold;
-    margin-bottom: 1;
-}
+/* === Key chips === */
 
 KeyCombo {
     width: 100%;
@@ -126,23 +163,30 @@ KeyChip.wrong {
     width: auto;
     height: 3;
     content-align: center middle;
-    color: $primary;
+    color: $accent;
     padding: 0 1;
     text-style: bold;
 }
 
+/* === Stats === */
+
+#stats-title {
+    width: 100%;
+    text-align: center;
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+#stats-body {
+    width: 100%;
+    height: auto;
+    padding: 1 2;
+    background: $surface;
+}
+
 .hidden {
     display: none;
-}
-
-ListView {
-    width: 60;
-    height: auto;
-    border: round $primary;
-}
-
-ListItem {
-    padding: 0 2;
 }
 """
 
@@ -277,7 +321,9 @@ class HomeScreen(Screen):
             yield ListView(
                 *(
                     ListItem(
-                        Static(self._pack_summary(pack), classes="pack-summary"),
+                        Static(pack.name, classes="pack-name"),
+                        Static(pack.description, classes="pack-desc"),
+                        Static(self._pack_counts(pack), classes="pack-summary"),
                         id=f"pack-{pack.id}",
                     )
                     for pack in self._packs
@@ -288,9 +334,9 @@ class HomeScreen(Screen):
     def on_screen_resume(self) -> None:
         for pack in self._packs:
             label = self.query_one(f"#pack-{pack.id} .pack-summary", Static)
-            label.update(self._pack_summary(pack))
+            label.update(self._pack_counts(pack))
 
-    def _pack_summary(self, pack: Pack) -> str:
+    def _pack_counts(self, pack: Pack) -> str:
         cards = self.app.storage.load_cards()
         now = datetime.now(timezone.utc)
         due = 0
@@ -302,13 +348,13 @@ class HomeScreen(Screen):
             elif card.due is None or card.due <= now:
                 due += 1
         if due == 0 and new == 0:
-            return f"{pack.name} — all caught up"
+            return "all caught up"
         parts = []
         if due:
             parts.append(f"{due} due")
         if new:
             parts.append(f"{new} new")
-        return f"{pack.name} — " + " · ".join(parts)
+        return " · ".join(parts)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         prefix = "pack-"
