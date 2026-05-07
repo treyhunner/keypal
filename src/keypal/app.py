@@ -120,6 +120,15 @@ KeyChip.wrong {
     padding: 0 1;
 }
 
+.chord-separator {
+    width: auto;
+    height: 3;
+    content-align: center middle;
+    color: $primary;
+    padding: 0 1;
+    text-style: bold;
+}
+
 .hidden {
     display: none;
 }
@@ -147,16 +156,25 @@ class KeyChip(Static):
 
 
 class KeyCombo(Horizontal):
-    def set_combo(self, combo: str, *, chip_class: str = "") -> None:
+    def set_combo(self, combo: str | list[str], *, chip_class: str = "") -> None:
+        # Accept a single combo string OR a list of combos (chord sequence).
+        combos = [combo] if isinstance(combo, str) else list(combo)
         self.remove_children()
         widgets = []
-        for i, part in enumerate(prettify_combo(combo)):
-            if i > 0:
-                widgets.append(Static("+", classes="key-plus"))
-            chip = KeyChip(part)
-            if chip_class:
-                chip.add_class(chip_class)
-            widgets.append(chip)
+        for ci, single in enumerate(combos):
+            if ci > 0:
+                widgets.append(Static("→", classes="chord-separator"))
+            try:
+                parts = prettify_combo(single)
+            except ValueError:
+                parts = [single]
+            for i, part in enumerate(parts):
+                if i > 0:
+                    widgets.append(Static("+", classes="key-plus"))
+                chip = KeyChip(part)
+                if chip_class:
+                    chip.add_class(chip_class)
+                widgets.append(chip)
         self.mount(*widgets)
 
     def clear(self) -> None:
