@@ -75,6 +75,28 @@ def test_builtin_packs_includes_readline():
     assert any(s.action == "Move to start of line" for s in readline.shortcuts)
 
 
+def test_parse_pack_with_prefix():
+    data = {
+        "pack": {
+            "id": "tmux",
+            "name": "tmux",
+            "description": "tmux shortcuts",
+            "prefix": "ctrl+a",
+        },
+        "shortcuts": [{"action": "Next window", "keys": ["n"]}],
+    }
+    pack = parse_pack(data)
+    assert pack.prefix == "ctrl+a"
+
+
+def test_parse_pack_prefix_defaults_to_none():
+    data = {
+        "pack": {"id": "x", "name": "x", "description": "x"},
+        "shortcuts": [{"action": "a", "keys": ["b"]}],
+    }
+    assert parse_pack(data).prefix is None
+
+
 def test_shortcut_id_format():
     pack = Pack(
         id="readline",

@@ -20,6 +20,7 @@ class Pack:
     name: str
     description: str
     shortcuts: tuple[Shortcut, ...]
+    prefix: str | None = None
 
     def shortcut_id(self, shortcut: Shortcut) -> str:
         return f"{self.id}:{shortcut.action}"
@@ -42,6 +43,7 @@ def parse_pack(data: dict[str, Any]) -> Pack:
         name=pack_meta["name"],
         description=pack_meta["description"],
         shortcuts=shortcuts,
+        prefix=pack_meta.get("prefix"),
     )
 
 
