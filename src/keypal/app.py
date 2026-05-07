@@ -474,7 +474,11 @@ class QuizScreen(Screen):
         prompt.update(shortcut.action)
 
         if self._state is QuizState.ASKING:
-            hint.update("Press the shortcut · Space if you don't know")
+            if self._chord_buffer:
+                your_combo.set_combo(list(self._chord_buffer))
+                hint.update("Now press the next key…")
+            else:
+                hint.update("Press the shortcut · Space if you don't know")
             return
 
         expected_seq = self._expected_seq(shortcut)
@@ -488,15 +492,17 @@ class QuizScreen(Screen):
             return
 
         # WRONG_PRACTICE
-        if self._last_pressed_seq:
-            your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
-            verdict.update("Wrong")
-        else:
-            verdict.update("Don't know")
+        verdict.update("Wrong" if self._last_pressed_seq else "Don't know")
         verdict.add_class("wrong")
         expected_label.update("Try this:")
         expected_combo.set_combo(expected_seq, chip_class="correct")
-        hint.update("Press the shortcut · Y if you actually had it · Enter to skip")
+        if self._chord_buffer:
+            your_combo.set_combo(list(self._chord_buffer))
+            hint.update("Now press the next key…")
+        else:
+            if self._last_pressed_seq:
+                your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
+            hint.update("Press the shortcut · Y if you actually had it · Enter to skip")
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
@@ -537,8 +543,9 @@ class QuizScreen(Screen):
             self._render_state()
             return
 
-        # Wait for more keys if chord is incomplete
+        # Wait for more keys if chord is incomplete; render progress so user sees their press.
         if len(self._chord_buffer) < len(expected_seq):
+            self._render_state()
             return
 
         # Full sequence collected; compare
@@ -578,13 +585,14 @@ class QuizScreen(Screen):
         # Otherwise: collect chord keys for retry
         self._chord_buffer.append(event.key)
 
-        # First key wrong on retry: reset buffer (let them try again)
+        # First key wrong on retry: reset buffer silently (display still shows original wrong)
         if len(self._chord_buffer) == 1 and not matches(event.key, [expected_seq[0]], self._aliases):
             self._chord_buffer = []
             return
 
-        # Need more keys?
+        # Need more keys: render progress so user sees their press.
         if len(self._chord_buffer) < len(expected_seq):
+            self._render_state()
             return
 
         # Full sequence collected on retry
@@ -596,6 +604,9 @@ class QuizScreen(Screen):
         if all_match:
             event.stop()
             self._finalize(correct=False)  # was wrong on first attempt; just practiced
+        else:
+            # Wrong second key: re-render to clear chord-in-progress display.
+            self._render_state()
 
     def _remember_alias_seq(self, pressed_seq: list[str], expected_seq: list[str]) -> None:
         if not pressed_seq or len(pressed_seq) != len(expected_seq):
