@@ -1,0 +1,135 @@
+[pack]
+id = "obsidian"
+name = "Obsidian"
+description = "Useful Obsidian shortcuts plus Trey's custom bindings."
+
+
+# === Core navigation ===
+
+[[shortcuts]]
+action = "Open command palette"
+keys = ["ctrl+p"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Quick switcher (open file)"
+keys = ["ctrl+o"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Search the current note"
+keys = ["ctrl+f"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Search across the vault"
+keys = ["ctrl+shift+f"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Open graph view"
+keys = ["ctrl+g"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Navigate back"
+keys = ["alt+left"]
+tags = ["navigation", "custom"]
+
+[[shortcuts]]
+action = "Navigate forward"
+keys = ["alt+right"]
+tags = ["navigation", "custom"]
+
+
+# === Files & tabs ===
+
+[[shortcuts]]
+action = "New note"
+keys = ["ctrl+n"]
+tags = ["files"]
+
+[[shortcuts]]
+action = "Close current tab"
+keys = ["ctrl+w"]
+tags = ["files"]
+
+[[shortcuts]]
+action = "Reopen closed tab"
+keys = ["ctrl+shift+t"]
+tags = ["files"]
+
+
+# === Modes ===
+
+[[shortcuts]]
+action = "Toggle edit/preview mode"
+keys = ["ctrl+e"]
+tags = ["modes"]
+
+[[shortcuts]]
+action = "Toggle source/live-preview"
+keys = ["ctrl+m"]
+tags = ["modes", "custom"]
+
+
+# === Workspace splits ===
+
+[[shortcuts]]
+action = "Split editor vertically"
+keys = ["ctrl+\\"]
+tags = ["workspace", "custom"]
+
+[[shortcuts]]
+action = "Split editor horizontally"
+keys = ["ctrl+-"]
+tags = ["workspace", "custom"]
+
+[[shortcuts]]
+action = "Open tag pane"
+keys = ["ctrl+alt+shift+t"]
+tags = ["workspace", "custom"]
+
+
+# === Editing ===
+
+[[shortcuts]]
+action = "Bold selection"
+keys = ["ctrl+b"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Italic selection"
+keys = ["ctrl+i"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Insert link"
+keys = ["ctrl+k"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Toggle checklist item"
+keys = ["ctrl+l", "ctrl+enter"]
+tags = ["editing", "custom"]
+
+
+# === Outliner plugin ===
+
+[[shortcuts]]
+action = "Move list item up"
+keys = ["alt+shift+up"]
+tags = ["outliner", "custom"]
+
+[[shortcuts]]
+action = "Move list item down"
+keys = ["alt+shift+down"]
+tags = ["outliner", "custom"]
+
+
+# === Meta ===
+
+[[shortcuts]]
+action = "Open settings"
+keys = ["ctrl+,"]
+tags = ["meta"]
