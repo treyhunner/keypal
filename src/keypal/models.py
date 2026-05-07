@@ -53,10 +53,17 @@ def load_pack(path: Path) -> Pack:
 
 
 def builtin_packs() -> tuple[Pack, ...]:
+    # Imported lazily to avoid a circular dependency: providers import Pack from this module.
+    from keypal.obsidian import apply_obsidian_overrides
+    from keypal.tmux import apply_tmux_overrides
+
     package = resources.files("keypal.packs")
     packs = []
     for entry in package.iterdir():
         if entry.name.endswith(".toml"):
             with entry.open("rb") as f:
-                packs.append(parse_pack(tomllib.load(f)))
+                pack = parse_pack(tomllib.load(f))
+            pack = apply_tmux_overrides(pack)
+            pack = apply_obsidian_overrides(pack)
+            packs.append(pack)
     return tuple(packs)

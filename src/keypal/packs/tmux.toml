@@ -35,13 +35,11 @@ command = "new-window"
 action = "Rename window"
 keys = [","]
 tags = ["windows"]
-command = "command-prompt"
 
 [[shortcuts]]
 action = "Find window by name"
 keys = ["f"]
 tags = ["windows"]
-command = "find-window"
 
 [[shortcuts]]
 action = "Show window/session tree picker"
@@ -53,7 +51,6 @@ command = "choose-tree"
 action = "Kill window"
 keys = ["&"]
 tags = ["windows"]
-command = "confirm-before kill-window"
 
 
 # === Pane navigation ===
@@ -101,7 +98,6 @@ command = "split-window -v"
 action = "Kill the current pane"
 keys = ["x"]
 tags = ["panes"]
-command = "confirm-before kill-pane"
 
 [[shortcuts]]
 action = "Show pane numbers (then press one to jump)"
@@ -161,7 +157,6 @@ command = "choose-tree -Zs"
 action = "Rename session"
 keys = ["$"]
 tags = ["sessions"]
-command = "rename-session"
 
 
 # === Modes ===
