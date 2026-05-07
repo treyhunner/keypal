@@ -351,11 +351,15 @@ class HomeScreen(Screen):
 
     def _pack_counts(self, pack: Pack) -> str:
         cards = self.app.storage.load_cards()
+        disabled = self.app.storage.load_disabled()
         now = datetime.now(timezone.utc)
         due = 0
         new = 0
         for shortcut in pack.shortcuts:
-            card = cards.get(pack.shortcut_id(shortcut))
+            sid = pack.shortcut_id(shortcut)
+            if sid in disabled:
+                continue
+            card = cards.get(sid)
             if card is None:
                 new += 1
             elif card.due is None or card.due <= now:
@@ -443,6 +447,7 @@ class StatsScreen(Screen):
 
     def _render_stats(self) -> str:
         cards = self._storage.load_cards()
+        disabled = self._storage.load_disabled()
         review_count = sum(1 for _ in self._storage.read_reviews())
         now = datetime.now(timezone.utc)
 
@@ -452,15 +457,20 @@ class StatsScreen(Screen):
 
         pack_lines = []
         for pack in self._packs:
-            tracked = sum(1 for s in pack.shortcuts if pack.shortcut_id(s) in cards)
+            active_ids = [pack.shortcut_id(s) for s in pack.shortcuts if pack.shortcut_id(s) not in disabled]
+            tracked = sum(1 for sid in active_ids if sid in cards)
             due = sum(
                 1
-                for s in pack.shortcuts
-                if (card := cards.get(pack.shortcut_id(s))) is not None
+                for sid in active_ids
+                if (card := cards.get(sid)) is not None
                 and (card.due is None or card.due <= now)
             )
-            total = len(pack.shortcuts)
-            pack_lines.append(f"  {pack.name}: {tracked}/{total} tracked, {due} due")
+            total = len(active_ids)
+            skipped = len(pack.shortcuts) - total
+            line = f"  {pack.name}: {tracked}/{total} tracked, {due} due"
+            if skipped:
+                line += f" ({skipped} skipped)"
+            pack_lines.append(line)
 
         lines = [
             f"Reviews completed: {review_count}",
@@ -475,7 +485,10 @@ class StatsScreen(Screen):
 
 
 class QuizScreen(Screen):
-    BINDINGS = [("escape", "app.pop_screen", "Back to home")]
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Back to home"),
+        ("f4", "dismiss_card", "Skip forever"),
+    ]
 
     AUTO_ADVANCE_TICKS = 4  # 4 ticks at 1s each = 3 dots shown then advance
     AUTO_ADVANCE_INTERVAL_S = 1.0
@@ -487,7 +500,10 @@ class QuizScreen(Screen):
         self._storage = storage
         self._cards: dict[str, Card] = storage.load_cards()
         self._aliases: dict[str, set[str]] = storage.load_aliases()
-        self._shortcuts: list[Shortcut] = select_session(pack, self._cards)
+        self._disabled: set[str] = storage.load_disabled()
+        self._shortcuts: list[Shortcut] = select_session(
+            pack, self._cards, disabled=self._disabled
+        )
         self._index = 0
         self._state: QuizState = QuizState.ASKING
         self._start_ns: int | None = None
@@ -625,6 +641,12 @@ class QuizScreen(Screen):
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
             return  # let binding handle
+        if event.key == "f4":
+            # Handled here too because our state-machine handlers consume keypresses
+            # before the screen-level binding system gets a chance to fire.
+            event.stop()
+            self.action_dismiss_card()
+            return
         if self._current() is None:
             # Session complete: Enter returns home.
             if event.key == "enter":
@@ -776,6 +798,16 @@ class QuizScreen(Screen):
         self._cards[shortcut_id] = updated
         self._storage.save_cards(self._cards)
         self._storage.append_review(shortcut_id, log)
+
+    def action_dismiss_card(self) -> None:
+        shortcut = self._current()
+        if shortcut is None:
+            return
+        self._cancel_auto_advance()
+        self._disabled.add(self._pack.shortcut_id(shortcut))
+        self._storage.save_disabled(self._disabled)
+        # Skip recording an FSRS rating; just move on.
+        self._advance()
 
 
 class KeypalApp(App):
