@@ -21,13 +21,13 @@ Screen {
 }
 
 #home-content, #quiz-content {
-    width: auto;
+    width: 60;
+    max-width: 100%;
     height: auto;
-    align: center middle;
 }
 
 #home-prompt, #progress, #prompt, #verdict, #hint, #expected-label {
-    width: auto;
+    width: 100%;
     text-align: center;
 }
 
@@ -75,9 +75,9 @@ Screen {
 }
 
 KeyCombo {
-    width: auto;
+    width: 100%;
     height: 3;
-    align: center middle;
+    align-horizontal: center;
 }
 
 KeyChip {
