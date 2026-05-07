@@ -1,5 +1,6 @@
 import time
 
+import darkdetect
 from fsrs import Card
 from textual import events
 from textual.app import App, ComposeResult
@@ -132,6 +133,8 @@ class KeypalApp(App):
         self.storage = Storage()
 
     def on_mount(self) -> None:
+        if darkdetect.theme() == "Light":
+            self.theme = "textual-light"
         self.push_screen(HomeScreen(self.packs))
 
 
