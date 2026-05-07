@@ -1,3 +1,4 @@
+import atexit
 import time
 from datetime import datetime, timezone
 from enum import Enum
@@ -7,13 +8,14 @@ from fsrs import Card, State
 from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Footer, Header, ListItem, ListView, Static
 
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import review, select_session
 from keypal.storage import Storage
+from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
 
 
 CSS = """
@@ -181,6 +183,55 @@ class KeyCombo(Horizontal):
         self.remove_children()
 
 
+class ConfirmSwapModal(ModalScreen[bool]):
+    BINDINGS = [
+        ("y", "confirm", "Yes"),
+        ("n", "cancel", "No"),
+        ("escape", "cancel", "Cancel"),
+    ]
+
+    DEFAULT_CSS = """
+    ConfirmSwapModal {
+        align: center middle;
+    }
+
+    #modal-content {
+        width: 60;
+        max-width: 100%;
+        padding: 1 2;
+        border: thick $primary;
+        background: $surface;
+    }
+
+    .modal-text {
+        width: 100%;
+        margin-bottom: 1;
+        text-align: center;
+    }
+
+    .modal-warning {
+        color: $warning;
+        text-style: bold;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="modal-content"):
+            yield Static("This pack uses your tmux prefix.", classes="modal-text modal-warning")
+            yield Static(
+                "Continuing will disable your tmux prefix until you leave this pack. "
+                "tmux navigation (switching windows, sessions, panes) will not work.",
+                classes="modal-text",
+            )
+            yield Static("Press Y to continue, N or Esc to cancel.", classes="modal-text")
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class HomeScreen(Screen):
     BINDINGS = [
         ("q", "app.quit", "Quit"),
@@ -244,8 +295,27 @@ class HomeScreen(Screen):
             return
         pack_id = event.item.id[len(prefix):]
         pack = next((p for p in self._packs if p.id == pack_id), None)
-        if pack is not None:
+        if pack is None:
+            return
+        if self._needs_prefix_swap(pack):
+            def handle_response(confirmed: bool | None) -> None:
+                if confirmed:
+                    self.app.tmux_swap.activate()
+                    self.app.push_screen(QuizScreen(pack, self.app.storage))
+            self.app.push_screen(ConfirmSwapModal(), handle_response)
+        else:
             self.app.push_screen(QuizScreen(pack, self.app.storage))
+
+    def _needs_prefix_swap(self, pack: Pack) -> bool:
+        if not pack.prefix or not inside_tmux():
+            return False
+        user_prefix = current_tmux_prefix()
+        if user_prefix is None:
+            return False
+        try:
+            return normalize(user_prefix) == normalize(pack.prefix)
+        except ValueError:
+            return False
 
 
 class DiagnosticScreen(Screen):
@@ -360,6 +430,10 @@ class QuizScreen(Screen):
 
     def on_mount(self) -> None:
         self._begin_card()
+
+    def on_unmount(self) -> None:
+        # Restore tmux prefix if it was swapped to enter this pack.
+        self.app.tmux_swap.deactivate()
 
     def _current(self) -> Shortcut | None:
         if self._index >= len(self._shortcuts):
@@ -572,6 +646,8 @@ class KeypalApp(App):
         super().__init__()
         self.packs = builtin_packs()
         self.storage = Storage()
+        self.tmux_swap = TmuxPrefixSwap()
+        atexit.register(self.tmux_swap.deactivate)
 
     def on_mount(self) -> None:
         if darkdetect.theme() == "Light":
