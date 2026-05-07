@@ -152,7 +152,13 @@ class KeyCombo(Horizontal):
 
 
 class HomeScreen(Screen):
-    BINDINGS = [("q", "app.quit", "Quit")]
+    BINDINGS = [
+        ("q", "app.quit", "Quit"),
+        ("d", "diagnostics", "Test keys"),
+    ]
+
+    def action_diagnostics(self) -> None:
+        self.app.push_screen(DiagnosticScreen())
 
     def __init__(self, packs: tuple[Pack, ...]) -> None:
         super().__init__()
@@ -181,6 +187,34 @@ class HomeScreen(Screen):
         pack = next((p for p in self._packs if p.id == pack_id), None)
         if pack is not None:
             self.app.push_screen(QuizScreen(pack, self.app.storage))
+
+
+class DiagnosticScreen(Screen):
+    BINDINGS = [("escape", "app.pop_screen", "Back")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="quiz-content"):
+            yield Static("", id="progress")
+            yield Static("Press any key combo", id="prompt")
+            yield KeyCombo(id="your-combo")
+            yield Static("", id="verdict")
+            yield Static("", id="expected-label")
+            yield KeyCombo(id="expected-combo")
+            yield Static("Esc to return", id="hint")
+        yield Footer()
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key == "escape":
+            return  # let binding handle
+        event.stop()
+        verdict = self.query_one("#verdict", Static)
+        verdict.update(f"Textual saw: {event.key!r}")
+        your_combo = self.query_one("#your-combo", KeyCombo)
+        try:
+            your_combo.set_combo(event.key)
+        except ValueError:
+            your_combo.clear()
 
 
 class QuizScreen(Screen):
