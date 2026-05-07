@@ -12,10 +12,10 @@ class Shortcut:
 
 @dataclass(frozen=True)
 class Pack:
-    filename: str
+    id: str
     name: str
     description: str
     shortcuts: tuple[Shortcut, ...]
 
     def shortcut_id(self, shortcut: Shortcut) -> str:
-        return f"{self.filename}:{shortcut.action}"
+        return f"{self.id}:{shortcut.action}"
