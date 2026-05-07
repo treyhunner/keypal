@@ -1,0 +1,54 @@
+[pack]
+id = "readline"
+name = "Readline / Bash"
+description = "Navigation and editing shortcuts for bash and other readline-based tools"
+
+[[shortcuts]]
+action = "Move to start of line"
+keys = ["ctrl+a"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Move to end of line"
+keys = ["ctrl+e"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Move forward one word"
+keys = ["alt+f"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Move backward one word"
+keys = ["alt+b"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Delete from cursor to end of line"
+keys = ["ctrl+k"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Delete from cursor to start of line"
+keys = ["ctrl+u"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Delete word before cursor"
+keys = ["ctrl+w", "alt+backspace"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Yank (paste) most recently killed text"
+keys = ["ctrl+y"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Search command history"
+keys = ["ctrl+r"]
+tags = ["history"]
+
+[[shortcuts]]
+action = "Clear screen"
+keys = ["ctrl+l"]
+tags = ["display"]
