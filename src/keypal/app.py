@@ -1,6 +1,6 @@
 import atexit
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 import darkdetect
@@ -261,6 +261,18 @@ TextBufferDemo {
 """
 
 
+def _format_relative(delta: timedelta) -> str:
+    """Render a future timedelta as 'a moment', '5 min', '2h', '3d'."""
+    seconds = delta.total_seconds()
+    if seconds < 60:
+        return "a moment"
+    if seconds < 3600:
+        return f"{int(seconds / 60)} min"
+    if seconds < 86400:
+        return f"{int(seconds / 3600)}h"
+    return f"{int(seconds / 86400)}d"
+
+
 class QuizState(Enum):
     ASKING = "asking"
     CORRECT_DONE = "correct_done"
@@ -469,6 +481,7 @@ class HomeScreen(Screen):
         shared_known = (
             0  # shortcut shared with another pack and already practiced (not due)
         )
+        upcoming: list[datetime] = []
         for shortcut in pack.shortcuts:
             sid = pack.shortcut_id(shortcut)
             if sid in disabled:
@@ -481,9 +494,13 @@ class HomeScreen(Screen):
                 new += 1
             elif card.due is None or card.due <= now:
                 due += 1
-            elif is_shared:
-                shared_known += 1
+            else:
+                upcoming.append(card.due)
+                if is_shared:
+                    shared_known += 1
         if due == 0 and new == 0 and shared_known == 0:
+            if upcoming:
+                return f"all caught up · next due in {_format_relative(min(upcoming) - now)}"
             return "all caught up"
         parts = []
         if due:
