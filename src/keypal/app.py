@@ -18,7 +18,13 @@ from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
 
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
-from keypal.scheduler import get_thresholds, review, select_session
+from keypal.scheduler import (
+    PERSONAL_LOOKBACK_DAYS,
+    Thresholds,
+    get_thresholds,
+    review,
+    select_session,
+)
 from keypal.storage import Storage
 from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
 
@@ -729,9 +735,7 @@ class QuizScreen(Screen):
         self._aliases: dict[str, set[str]] = storage.load_aliases()
         self._disabled: set[str] = storage.load_disabled()
         self._seen: set[str] = storage.load_seen()
-        self._thresholds = get_thresholds(
-            signals for _sid, _log, signals in storage.read_reviews()
-        )
+        self._thresholds = self._compute_thresholds()
         self._shortcuts: list[Shortcut] = select_session(
             pack, self._cards, disabled=self._disabled, seen=self._seen
         )
@@ -744,6 +748,15 @@ class QuizScreen(Screen):
         self._pending_elapsed_ms: int = 0
         self._auto_advance_step = 0
         self._auto_advance_timer = None
+
+    def _compute_thresholds(self) -> Thresholds:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=PERSONAL_LOOKBACK_DAYS)
+        recent_signals = [
+            signals
+            for _sid, log, signals in self._storage.read_reviews()
+            if datetime.fromisoformat(log.to_dict()["review_datetime"]) >= cutoff
+        ]
+        return get_thresholds(recent_signals)
 
     def _expected_seq(self, shortcut: Shortcut) -> list[str]:
         """Canonical display sequence (first listed key for each position)."""
