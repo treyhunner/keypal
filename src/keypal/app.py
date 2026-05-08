@@ -1155,15 +1155,21 @@ class QuizScreen(Screen):
             self._handle_wrong_practice(event)
 
     def _sequential_hint(self) -> str:
-        remaining = []
-        for mod in self._seq_remaining_mods:
-            pretty = prettify_key(mod)
-            remaining.append(f"any {pretty}+key combo")
-        if self._seq_remaining_base is not None:
-            remaining.append(prettify_key(self._seq_remaining_base))
-        if remaining:
-            return f"Press {', then '.join(remaining)} · Space to give up"
-        return ""
+        mods = self._seq_remaining_mods
+        base = self._seq_remaining_base
+        if not mods and base is None:
+            return ""
+        parts = []
+        if mods:
+            mod_names = "+".join(prettify_key(m) for m in sorted(mods))
+            if base is not None:
+                parts.append(f"try {mod_names}+{prettify_key(base)} together")
+                parts.append("or press modifiers with any key")
+            else:
+                parts.append(f"any {mod_names}+key combo")
+        elif base is not None:
+            parts.append(f"press {prettify_key(base)}")
+        return f"{' · '.join(parts)} · Space to give up"
 
     def _enter_sequential(self, shortcut: Shortcut, pack: Pack) -> None:
         combo = shortcut.keys[0]
