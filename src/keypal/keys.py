@@ -148,6 +148,25 @@ def matches(
     return False
 
 
+def split_combo(combo: str) -> tuple[list[str], str]:
+    """Split a combo into (sorted modifiers, base key)."""
+    parts = _split_normalized(normalize(combo))
+    mods = sorted(p for p in parts if p in MODIFIERS)
+    base = [p for p in parts if p not in MODIFIERS]
+    return mods, base[0]
+
+
+def extract_parts(key_event: str) -> tuple[set[str], str | None]:
+    """Extract the modifier set and base key from a raw keypress."""
+    try:
+        parts = _split_normalized(normalize(key_event))
+    except ValueError:
+        return set(), None
+    mods = {p for p in parts if p in MODIFIERS}
+    base = [p for p in parts if p not in MODIFIERS]
+    return mods, base[0] if base else None
+
+
 def prettify_key(token: str) -> str:
     token = token.strip().lower()
     if token in SPECIAL_KEY_NAMES:
