@@ -68,11 +68,8 @@ Screen {
 
 /* === Home === */
 
-#home-prompt {
+#practice-btn {
     width: 100%;
-    text-align: center;
-    text-style: bold;
-    color: $accent;
     margin-bottom: 1;
 }
 
@@ -513,7 +510,7 @@ class HomeScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="home-content"):
-            yield Static("Choose a pack to practice", id="home-prompt")
+            yield Button("Practice", id="practice-btn", variant="primary")
             yield ListView(
                 *(
                     ListItem(
@@ -571,35 +568,46 @@ class HomeScreen(Screen):
             parts.append(f"{shared_known} shared")
         return " · ".join(parts)
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "practice-btn":
+            self._start_quiz(self._packs)
+
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         prefix = "pack-"
         if event.item.id is None or not event.item.id.startswith(prefix):
             return
         pack_id = event.item.id[len(prefix) :]
         pack = next((p for p in self._packs if p.id == pack_id), None)
-        if pack is None:
-            return
-        if self._needs_prefix_swap(pack):
+        if pack is not None:
+            self._start_quiz((pack,))
+
+    def _start_quiz(self, packs: tuple[Pack, ...]) -> None:
+        if self._any_needs_prefix_swap(packs):
 
             def handle_response(confirmed: bool | None) -> None:
                 if confirmed:
                     self.app.tmux_swap.activate()
-                    self.app.push_screen(QuizScreen((pack,), self.app.storage))
+                    self.app.push_screen(QuizScreen(packs, self.app.storage))
 
             self.app.push_screen(ConfirmSwapModal(), handle_response)
         else:
-            self.app.push_screen(QuizScreen((pack,), self.app.storage))
+            self.app.push_screen(QuizScreen(packs, self.app.storage))
 
-    def _needs_prefix_swap(self, pack: Pack) -> bool:
-        if not pack.prefix or not inside_tmux():
+    def _any_needs_prefix_swap(self, packs: tuple[Pack, ...]) -> bool:
+        if not inside_tmux():
             return False
         user_prefix = current_tmux_prefix()
         if user_prefix is None:
             return False
-        try:
-            return normalize(user_prefix) == normalize(pack.prefix)
-        except ValueError:
-            return False
+        for pack in packs:
+            if not pack.prefix:
+                continue
+            try:
+                if normalize(user_prefix) == normalize(pack.prefix):
+                    return True
+            except ValueError:
+                continue
+        return False
 
 
 class BrowseScreen(Screen):
