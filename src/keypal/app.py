@@ -14,7 +14,15 @@ from textual.driver import Driver
 from textual.drivers.linux_driver import LinuxDriver
 from textual.keys import Keys
 from textual.screen import ModalScreen, Screen
-from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
+from textual.widgets import (
+    Button,
+    Checkbox,
+    Footer,
+    Header,
+    ListItem,
+    ListView,
+    Static,
+)
 
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
@@ -94,8 +102,22 @@ ListItem.--highlight {
     border-left: thick $accent;
 }
 
-.pack-name {
+.pack-header {
     width: 100%;
+    height: 1;
+}
+
+.pack-header Checkbox {
+    width: auto;
+    height: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    min-width: 0;
+}
+
+.pack-name {
+    width: 1fr;
     text-style: bold;
     color: $accent;
 }
@@ -479,6 +501,7 @@ class ConfirmSwapModal(ModalScreen[bool]):
 class HomeScreen(Screen):
     BINDINGS = [
         ("q", "app.quit", "Quit"),
+        ("x", "toggle_pack", "Toggle pack"),
         ("b", "browse", "Browse pack"),
         ("s", "stats", "Stats"),
         ("d", "diagnostics", "Test keys"),
@@ -488,24 +511,22 @@ class HomeScreen(Screen):
         self.app.push_screen(DiagnosticScreen())
 
     def action_stats(self) -> None:
-        self.app.push_screen(StatsScreen(self._packs, self.app.storage))
+        self.app.push_screen(StatsScreen(self._packs, self._storage))
 
     def action_browse(self) -> None:
-        list_view = self.query_one(ListView)
-        item = list_view.highlighted_child
-        if item is None or item.id is None:
-            return
-        prefix = "pack-"
-        if not item.id.startswith(prefix):
-            return
-        pack_id = item.id[len(prefix) :]
-        pack = next((p for p in self._packs if p.id == pack_id), None)
+        pack = self._highlighted_pack()
         if pack is not None:
             self.app.push_screen(BrowseScreen(pack))
 
-    def __init__(self, packs: tuple[Pack, ...]) -> None:
+    def __init__(self, packs: tuple[Pack, ...], storage: Storage) -> None:
         super().__init__()
         self._packs = packs
+        self._storage = storage
+        saved = storage.load_selected_packs()
+        if saved is None:
+            self._selected: set[str] = {p.id for p in packs}
+        else:
+            self._selected = saved & {p.id for p in packs}
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -514,7 +535,15 @@ class HomeScreen(Screen):
             yield ListView(
                 *(
                     ListItem(
-                        Static(pack.name, classes="pack-name"),
+                        Horizontal(
+                            Checkbox(
+                                "",
+                                value=pack.id in self._selected,
+                                id=f"check-{pack.id}",
+                            ),
+                            Static(pack.name, classes="pack-name"),
+                            classes="pack-header",
+                        ),
                         Static(pack.description, classes="pack-desc"),
                         Static(self._pack_counts(pack), classes="pack-summary"),
                         id=f"pack-{pack.id}",
@@ -529,9 +558,38 @@ class HomeScreen(Screen):
             label = self.query_one(f"#pack-{pack.id} .pack-summary", Static)
             label.update(self._pack_counts(pack))
 
+    def _highlighted_pack(self) -> Pack | None:
+        list_view = self.query_one(ListView)
+        item = list_view.highlighted_child
+        if item is None or item.id is None:
+            return None
+        prefix = "pack-"
+        if not item.id.startswith(prefix):
+            return None
+        pack_id = item.id[len(prefix) :]
+        return next((p for p in self._packs if p.id == pack_id), None)
+
+    def action_toggle_pack(self) -> None:
+        pack = self._highlighted_pack()
+        if pack is None:
+            return
+        checkbox = self.query_one(f"#check-{pack.id}", Checkbox)
+        checkbox.value = not checkbox.value
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        prefix = "check-"
+        if event.checkbox.id is None or not event.checkbox.id.startswith(prefix):
+            return
+        pack_id = event.checkbox.id[len(prefix) :]
+        if event.value:
+            self._selected.add(pack_id)
+        else:
+            self._selected.discard(pack_id)
+        self._storage.save_selected_packs(self._selected)
+
     def _pack_counts(self, pack: Pack) -> str:
-        cards = self.app.storage.load_cards()
-        disabled = self.app.storage.load_disabled()
+        cards = self._storage.load_cards()
+        disabled = self._storage.load_disabled()
         now = datetime.now(timezone.utc)
         due = 0
         new = 0
@@ -570,7 +628,9 @@ class HomeScreen(Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "practice-btn":
-            self._start_quiz(self._packs)
+            selected = tuple(p for p in self._packs if p.id in self._selected)
+            if selected:
+                self._start_quiz(selected)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         prefix = "pack-"
@@ -587,11 +647,11 @@ class HomeScreen(Screen):
             def handle_response(confirmed: bool | None) -> None:
                 if confirmed:
                     self.app.tmux_swap.activate()
-                    self.app.push_screen(QuizScreen(packs, self.app.storage))
+                    self.app.push_screen(QuizScreen(packs, self._storage))
 
             self.app.push_screen(ConfirmSwapModal(), handle_response)
         else:
-            self.app.push_screen(QuizScreen(packs, self.app.storage))
+            self.app.push_screen(QuizScreen(packs, self._storage))
 
     def _any_needs_prefix_swap(self, packs: tuple[Pack, ...]) -> bool:
         if not inside_tmux():
@@ -1152,7 +1212,7 @@ class KeypalApp(App):
                 self.theme = "solarized-light"
             case "Dark":
                 self.theme = "solarized-dark"
-        self.push_screen(HomeScreen(self.packs))
+        self.push_screen(HomeScreen(self.packs, self.storage))
 
 
 def main() -> None:
