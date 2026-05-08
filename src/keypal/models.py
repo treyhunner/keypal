@@ -12,6 +12,7 @@ class Shortcut:
     tags: tuple[str, ...] = ()
     hint: str | None = None
     command: str | None = None  # stable ID joining shortcut to live config (e.g. tmux command, obsidian command id)
+    shared_id: str | None = None  # when set, identifies the FSRS card across packs (e.g. "readline:Move to start of line")
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,8 @@ class Pack:
     prefix: str | None = None
 
     def shortcut_id(self, shortcut: Shortcut) -> str:
+        if shortcut.shared_id:
+            return shortcut.shared_id
         return f"{self.id}:{shortcut.action}"
 
 
@@ -35,6 +38,7 @@ def parse_pack(data: dict[str, Any]) -> Pack:
             tags=tuple(item.get("tags", ())),
             hint=item.get("hint"),
             command=item.get("command"),
+            shared_id=item.get("shared_id"),
         )
         for item in data.get("shortcuts", [])
     )
