@@ -18,7 +18,7 @@ from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
 
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
-from keypal.scheduler import review, select_session
+from keypal.scheduler import get_thresholds, review, select_session
 from keypal.storage import Storage
 from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
 
@@ -729,6 +729,9 @@ class QuizScreen(Screen):
         self._aliases: dict[str, set[str]] = storage.load_aliases()
         self._disabled: set[str] = storage.load_disabled()
         self._seen: set[str] = storage.load_seen()
+        self._thresholds = get_thresholds(
+            signals for _sid, _log, signals in storage.read_reviews()
+        )
         self._shortcuts: list[Shortcut] = select_session(
             pack, self._cards, disabled=self._disabled, seen=self._seen
         )
@@ -1069,7 +1072,10 @@ class QuizScreen(Screen):
         shortcut_id = self._pack.shortcut_id(shortcut)
         card = self._cards.get(shortcut_id, Card())
         updated, log = review(
-            card, correct=correct, response_time_ms=int(response_time_ms)
+            card,
+            correct=correct,
+            response_time_ms=int(response_time_ms),
+            thresholds=self._thresholds,
         )
         self._cards[shortcut_id] = updated
         self._storage.save_cards(self._cards)
