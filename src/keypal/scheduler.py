@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -143,4 +143,39 @@ def select_session(
         elif is_shared_other and unseen_in_pack:
             # Shared with another pack and never reviewed in *this* pack: introduce it once.
             new.append(shortcut)
+    return due + new[:new_per_session]
+
+
+def select_multi_session(
+    packs: Sequence[Pack],
+    cards: Mapping[str, Card],
+    *,
+    new_per_session: int = DEFAULT_NEW_PER_SESSION,
+    now: datetime | None = None,
+    disabled: set[str] | None = None,
+    seen: set[str] | None = None,
+) -> list[tuple[Shortcut, Pack]]:
+    now = now or datetime.now(timezone.utc)
+    disabled = disabled or set()
+    seen = seen or set()
+    due: list[tuple[Shortcut, Pack]] = []
+    new: list[tuple[Shortcut, Pack]] = []
+    collected_ids: set[str] = set()
+    for pack in packs:
+        for shortcut in pack.shortcuts:
+            sid = pack.shortcut_id(shortcut)
+            if sid in disabled or sid in collected_ids:
+                continue
+            collected_ids.add(sid)
+            card = cards.get(sid)
+            is_shared_other = bool(
+                shortcut.shared_id
+            ) and not shortcut.shared_id.startswith(f"{pack.id}:")
+            unseen_in_pack = f"{pack.id}::{sid}" not in seen
+            if card is None:
+                new.append((shortcut, pack))
+            elif card.due is None or card.due <= now:
+                due.append((shortcut, pack))
+            elif is_shared_other and unseen_in_pack:
+                new.append((shortcut, pack))
     return due + new[:new_per_session]

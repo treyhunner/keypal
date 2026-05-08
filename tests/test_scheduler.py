@@ -15,6 +15,7 @@ from keypal.scheduler import (
     compute_personal_thresholds,
     get_thresholds,
     review,
+    select_multi_session,
     select_session,
 )
 
@@ -235,3 +236,95 @@ def test_get_thresholds_blends_between_min_and_full():
 def test_get_thresholds_ignores_missing_response_time():
     signals = [{}] * 50
     assert get_thresholds(signals) == DEFAULT_THRESHOLDS
+
+
+# --- select_multi_session ---
+
+
+def test_multi_session_single_pack_matches_select_session():
+    pack = _pack("a", "b", "c")
+    result = select_multi_session([pack], {}, new_per_session=2)
+    actions = [s.action for s, p in result]
+    assert actions == ["a", "b"]
+    assert all(p is pack for _, p in result)
+
+
+def test_multi_session_merges_due_from_multiple_packs():
+    pack_a = Pack(id="a", name="a", description="a", shortcuts=(_shortcut("x"),))
+    pack_b = Pack(id="b", name="b", description="b", shortcuts=(_shortcut("y"),))
+    now = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    cards = {
+        "a:x": Card(due=now - timedelta(hours=1)),
+        "b:y": Card(due=now - timedelta(hours=2)),
+    }
+    result = select_multi_session([pack_a, pack_b], cards, now=now)
+    actions = [(s.action, p.id) for s, p in result]
+    assert ("x", "a") in actions
+    assert ("y", "b") in actions
+
+
+def test_multi_session_caps_new_across_packs():
+    pack_a = _pack("a1", "a2", "a3")
+    pack_b = Pack(
+        id="b",
+        name="b",
+        description="b",
+        shortcuts=(
+            _shortcut("b1"),
+            _shortcut("b2"),
+            _shortcut("b3"),
+        ),
+    )
+    result = select_multi_session([pack_a, pack_b], {}, new_per_session=4)
+    assert len(result) == 4
+    actions = [s.action for s, _ in result]
+    assert actions == ["a1", "a2", "a3", "b1"]
+
+
+def test_multi_session_deduplicates_shared_shortcuts():
+    shared = Shortcut(
+        action="Move to start of line",
+        keys=("ctrl+a",),
+        shared_id="readline:Move to start of line",
+    )
+    pack_a = Pack(id="readline", name="r", description="r", shortcuts=(shared,))
+    pack_b = Pack(id="python_repl", name="p", description="p", shortcuts=(shared,))
+    result = select_multi_session([pack_a, pack_b], {}, new_per_session=10)
+    assert len(result) == 1
+    assert result[0][1].id == "readline"
+
+
+def test_multi_session_deduplicates_due_shared_shortcuts():
+    shared = Shortcut(
+        action="Move to start of line",
+        keys=("ctrl+a",),
+        shared_id="readline:Move to start of line",
+    )
+    pack_a = Pack(id="readline", name="r", description="r", shortcuts=(shared,))
+    pack_b = Pack(id="python_repl", name="p", description="p", shortcuts=(shared,))
+    now = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    cards = {"readline:Move to start of line": Card(due=now - timedelta(hours=1))}
+    result = select_multi_session([pack_a, pack_b], cards, now=now)
+    assert len(result) == 1
+    assert result[0][1].id == "readline"
+
+
+def test_multi_session_excludes_disabled():
+    pack_a = _pack("a", "b")
+    pack_b = Pack(id="b", name="b", description="b", shortcuts=(_shortcut("c"),))
+    disabled = {"t:b"}
+    result = select_multi_session(
+        [pack_a, pack_b],
+        {},
+        disabled=disabled,
+        new_per_session=10,
+    )
+    actions = [s.action for s, _ in result]
+    assert "b" not in actions
+    assert "a" in actions
+    assert "c" in actions
+
+
+def test_multi_session_empty_packs():
+    result = select_multi_session([], {})
+    assert result == []
