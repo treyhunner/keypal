@@ -6,6 +6,7 @@ from keypal.models import Pack, Shortcut
 from keypal.scheduler import (
     FAST_MS,
     SLOW_MS,
+    Thresholds,
     classify,
     review,
     select_session,
@@ -28,6 +29,20 @@ def test_classify_medium_correct_is_good():
 
 def test_classify_slow_correct_is_hard():
     assert classify(correct=True, response_time_ms=SLOW_MS + 1) == Rating.Hard
+
+
+def test_classify_with_custom_thresholds():
+    fast = Thresholds(fast_ms=1_000, slow_ms=5_000)
+    assert classify(correct=True, response_time_ms=999, thresholds=fast) == Rating.Easy
+    assert (
+        classify(correct=True, response_time_ms=1_000, thresholds=fast) == Rating.Good
+    )
+    assert (
+        classify(correct=True, response_time_ms=5_000, thresholds=fast) == Rating.Good
+    )
+    assert (
+        classify(correct=True, response_time_ms=5_001, thresholds=fast) == Rating.Hard
+    )
 
 
 def test_review_returns_updated_card_and_log():

@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fsrs import Card, Rating, ReviewLog, Scheduler
@@ -10,12 +11,25 @@ SLOW_MS = 8_000
 DEFAULT_NEW_PER_SESSION = 5
 
 
-def classify(correct: bool, response_time_ms: int) -> Rating:
+@dataclass(frozen=True)
+class Thresholds:
+    fast_ms: int = FAST_MS
+    slow_ms: int = SLOW_MS
+
+
+DEFAULT_THRESHOLDS = Thresholds()
+
+
+def classify(
+    correct: bool,
+    response_time_ms: int,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
+) -> Rating:
     if not correct:
         return Rating.Again
-    if response_time_ms < FAST_MS:
+    if response_time_ms < thresholds.fast_ms:
         return Rating.Easy
-    if response_time_ms > SLOW_MS:
+    if response_time_ms > thresholds.slow_ms:
         return Rating.Hard
     return Rating.Good
 
@@ -25,9 +39,10 @@ def review(
     *,
     correct: bool,
     response_time_ms: int,
+    thresholds: Thresholds = DEFAULT_THRESHOLDS,
     scheduler: Scheduler | None = None,
 ) -> tuple[Card, ReviewLog]:
-    rating = classify(correct, response_time_ms)
+    rating = classify(correct, response_time_ms, thresholds)
     return (scheduler or Scheduler()).review_card(
         card, rating, review_duration=response_time_ms
     )
