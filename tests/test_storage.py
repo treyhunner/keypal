@@ -1,5 +1,3 @@
-import json
-
 from fsrs import Card, Rating, Scheduler
 
 from keypal.storage import Storage, default_data_dir
@@ -46,21 +44,6 @@ def test_append_and_read_reviews_roundtrip(tmp_path):
 def test_read_reviews_empty_when_missing(tmp_path):
     storage = Storage(base_dir=tmp_path)
     assert list(storage.read_reviews()) == []
-
-
-def test_legacy_ndjson_review_log_is_migrated(tmp_path):
-    storage = Storage(base_dir=tmp_path)
-    card = Card()
-    _, log = Scheduler().review_card(card, Rating.Good)
-    legacy = tmp_path / "review_log.ndjson"
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    legacy.write_text(json.dumps({"shortcut_id": "x", "log": log.to_dict()}) + "\n")
-
-    reviews = list(storage.read_reviews())
-
-    assert not legacy.exists()
-    assert (tmp_path / "review_log.jsonl").exists()
-    assert reviews[0][0] == "x"
 
 
 def test_aliases_empty_when_missing(tmp_path):

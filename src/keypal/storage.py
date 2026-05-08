@@ -26,11 +26,6 @@ class Storage:
     def review_log_path(self) -> Path:
         return self.base_dir / "review_log.jsonl"
 
-    def _migrate_legacy_review_log(self) -> None:
-        legacy = self.base_dir / "review_log.ndjson"
-        if legacy.exists() and not self.review_log_path.exists():
-            legacy.rename(self.review_log_path)
-
     @property
     def aliases_path(self) -> Path:
         return self.base_dir / "aliases.json"
@@ -52,13 +47,11 @@ class Storage:
 
     def append_review(self, shortcut_id: str, log: ReviewLog) -> None:
         self.base_dir.mkdir(parents=True, exist_ok=True)
-        self._migrate_legacy_review_log()
         record = {"shortcut_id": shortcut_id, "log": log.to_dict()}
         with open(self.review_log_path, mode="at") as file:
             file.write(json.dumps(record) + "\n")
 
     def read_reviews(self) -> Iterator[tuple[str, ReviewLog]]:
-        self._migrate_legacy_review_log()
         if not self.review_log_path.exists():
             return
         with open(self.review_log_path) as file:
