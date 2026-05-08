@@ -8,6 +8,8 @@ from fsrs import Card, State
 from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.driver import Driver
+from textual.drivers.linux_driver import LinuxDriver
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
 
@@ -271,6 +273,24 @@ def _format_relative(delta: timedelta) -> str:
     if seconds < 86400:
         return f"{int(seconds / 3600)}h"
     return f"{int(seconds / 86400)}d"
+
+
+class LegacyKeyboardDriver(LinuxDriver):
+    """Linux driver with the kitty keyboard protocol request suppressed.
+
+    The kitty protocol confuses Textual's input parsing in some terminal stacks
+    (notably tmux without `extended-keys on`, GNOME Terminal/VTE, etc.), where
+    `Alt+Enter` ends up reported as plain `enter`. Suppressing the protocol
+    forces the legacy ESC-prefix parser, which reliably maps `\\x1b\\n` to
+    `alt+enter` (the same logic Python's pyrepl uses).
+    """
+
+    _SUPPRESSED = (b"\x1b[>1u", b"\x1b[<u", "\x1b[>1u", "\x1b[<u")
+
+    def write(self, data) -> None:
+        if data in self._SUPPRESSED:
+            return
+        super().write(data)
 
 
 class QuizState(Enum):
@@ -1042,6 +1062,12 @@ class KeypalApp(App):
         self.storage = Storage()
         self.tmux_swap = TmuxPrefixSwap()
         atexit.register(self.tmux_swap.deactivate)
+
+    def get_driver_class(self) -> type[Driver]:
+        # Force the legacy ESC-prefix keyboard parser instead of kitty protocol.
+        # Without this, Alt+Enter (and a handful of other modified-special-key
+        # combos) gets reported as plain `enter` in some terminal stacks.
+        return LegacyKeyboardDriver
 
     def on_mount(self) -> None:
         match darkdetect.theme():
