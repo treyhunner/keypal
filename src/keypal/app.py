@@ -735,6 +735,7 @@ class QuizScreen(Screen):
         self._index = 0
         self._state: QuizState = QuizState.ASKING
         self._start_ns: int | None = None
+        self._first_key_ns: int | None = None
         self._last_pressed_seq: list[str] = []
         self._chord_buffer: list[str] = []
         self._pending_elapsed_ms: int = 0
@@ -801,6 +802,7 @@ class QuizScreen(Screen):
         self._last_pressed_seq = []
         self._chord_buffer = []
         self._start_ns = time.monotonic_ns() if self._current() else None
+        self._first_key_ns = None
         self._render_state()
 
     def _start_auto_advance(self) -> None:
@@ -946,6 +948,9 @@ class QuizScreen(Screen):
             self._render_state()
             return
 
+        if self._first_key_ns is None:
+            self._first_key_ns = time.monotonic_ns()
+
         self._chord_buffer.append(event.key)
 
         # Wrong at the current position: complete the attempt as just what they pressed.
@@ -1053,6 +1058,11 @@ class QuizScreen(Screen):
             return 0
         return (time.monotonic_ns() - self._start_ns) // 1_000_000
 
+    def _first_key_elapsed_ms(self) -> int | None:
+        if self._start_ns is None or self._first_key_ns is None:
+            return None
+        return (self._first_key_ns - self._start_ns) // 1_000_000
+
     def _record_answer(
         self, shortcut: Shortcut, *, correct: bool, response_time_ms: int
     ) -> None:
@@ -1063,7 +1073,11 @@ class QuizScreen(Screen):
         )
         self._cards[shortcut_id] = updated
         self._storage.save_cards(self._cards)
-        self._storage.append_review(shortcut_id, log)
+        signals: dict[str, int | None] = {
+            "response_time_ms": response_time_ms,
+            "time_to_first_keystroke_ms": self._first_key_elapsed_ms(),
+        }
+        self._storage.append_review(shortcut_id, log, signals=signals)
         pack_sid = f"{self._pack.id}::{shortcut_id}"
         if pack_sid not in self._seen:
             self._seen.add(pack_sid)
