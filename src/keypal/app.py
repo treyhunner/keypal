@@ -23,7 +23,7 @@ from keypal.scheduler import (
     Thresholds,
     get_thresholds,
     review,
-    select_session,
+    select_multi_session,
 )
 from keypal.storage import Storage
 from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
@@ -579,11 +579,11 @@ class HomeScreen(Screen):
             def handle_response(confirmed: bool | None) -> None:
                 if confirmed:
                     self.app.tmux_swap.activate()
-                    self.app.push_screen(QuizScreen(pack, self.app.storage))
+                    self.app.push_screen(QuizScreen((pack,), self.app.storage))
 
             self.app.push_screen(ConfirmSwapModal(), handle_response)
         else:
-            self.app.push_screen(QuizScreen(pack, self.app.storage))
+            self.app.push_screen(QuizScreen((pack,), self.app.storage))
 
     def _needs_prefix_swap(self, pack: Pack) -> bool:
         if not pack.prefix or not inside_tmux():
@@ -727,17 +727,17 @@ class QuizScreen(Screen):
     AUTO_ADVANCE_INTERVAL_S = 1.0
     DOT_CHAR = "●"
 
-    def __init__(self, pack: Pack, storage: Storage) -> None:
+    def __init__(self, packs: tuple[Pack, ...], storage: Storage) -> None:
         super().__init__()
-        self._pack = pack
+        self._packs = packs
         self._storage = storage
         self._cards: dict[str, Card] = storage.load_cards()
         self._aliases: dict[str, set[str]] = storage.load_aliases()
         self._disabled: set[str] = storage.load_disabled()
         self._seen: set[str] = storage.load_seen()
         self._thresholds = self._compute_thresholds()
-        self._shortcuts: list[Shortcut] = select_session(
-            pack, self._cards, disabled=self._disabled, seen=self._seen
+        self._session: list[tuple[Shortcut, Pack]] = select_multi_session(
+            packs, self._cards, disabled=self._disabled, seen=self._seen
         )
         self._index = 0
         self._state: QuizState = QuizState.ASKING
@@ -758,27 +758,28 @@ class QuizScreen(Screen):
         ]
         return get_thresholds(recent_signals)
 
-    def _expected_seq(self, shortcut: Shortcut) -> list[str]:
-        """Canonical display sequence (first listed key for each position)."""
-        if self._pack.prefix:
-            return [self._pack.prefix, shortcut.keys[0]]
+    def _expected_seq(self, shortcut: Shortcut, pack: Pack) -> list[str]:
+        if pack.prefix:
+            return [pack.prefix, shortcut.keys[0]]
         return [shortcut.keys[0]]
 
-    def _expected_chord_length(self) -> int:
-        return 2 if self._pack.prefix else 1
+    def _expected_chord_length(self, pack: Pack) -> int:
+        return 2 if pack.prefix else 1
 
-    def _match_position(self, position: int, key: str, shortcut: Shortcut) -> bool:
-        """Match a single keypress against any valid value at that chord position."""
-        if self._pack.prefix and position == 0:
-            return matches(key, [self._pack.prefix], self._aliases)
-        # Final position (chord position 1, or single combo position 0): any of shortcut.keys
+    def _match_position(
+        self, position: int, key: str, shortcut: Shortcut, pack: Pack
+    ) -> bool:
+        if pack.prefix and position == 0:
+            return matches(key, [pack.prefix], self._aliases)
         return matches(key, shortcut.keys, self._aliases)
 
-    def _evaluate_chord(self, buffer: list[str], shortcut: Shortcut) -> bool:
-        if len(buffer) != self._expected_chord_length():
+    def _evaluate_chord(
+        self, buffer: list[str], shortcut: Shortcut, pack: Pack
+    ) -> bool:
+        if len(buffer) != self._expected_chord_length(pack):
             return False
         return all(
-            self._match_position(i, key, shortcut) for i, key in enumerate(buffer)
+            self._match_position(i, key, shortcut, pack) for i, key in enumerate(buffer)
         )
 
     def compose(self) -> ComposeResult:
@@ -807,10 +808,10 @@ class QuizScreen(Screen):
         # Restore tmux prefix if it was swapped to enter this pack.
         self.app.tmux_swap.deactivate()
 
-    def _current(self) -> Shortcut | None:
-        if self._index >= len(self._shortcuts):
+    def _current(self) -> tuple[Shortcut, Pack] | None:
+        if self._index >= len(self._session):
             return None
-        return self._shortcuts[self._index]
+        return self._session[self._index]
 
     def _begin_card(self) -> None:
         self._cancel_auto_advance()
@@ -847,7 +848,7 @@ class QuizScreen(Screen):
                 cell.update(self.DOT_CHAR if self._auto_advance_step >= i else "")
 
     def _render_state(self) -> None:
-        shortcut = self._current()
+        current = self._current()
         progress = self.query_one("#progress", Static)
         prompt = self.query_one("#prompt", Static)
         your_combo = self.query_one("#your-combo", KeyCombo)
@@ -869,17 +870,16 @@ class QuizScreen(Screen):
         demo_label.update("")
         demo_row.remove_children()
 
-        if shortcut is None:
+        if current is None:
             progress.update("")
             prompt.update("Session complete")
             hint.update("Press Enter to return home")
             return
 
-        progress.update(f"{self._index + 1} / {len(self._shortcuts)}")
+        shortcut, pack = current
+        progress.update(f"{self._index + 1} / {len(self._session)}")
         prompt_text = shortcut.action
-        if shortcut.shared_id and not shortcut.shared_id.startswith(
-            f"{self._pack.id}:"
-        ):
+        if shortcut.shared_id and not shortcut.shared_id.startswith(f"{pack.id}:"):
             ns = shortcut.shared_id.split(":", 1)[0]
             prompt_text += f"  [$text-muted i](shared with {ns})[/]"
         prompt.update(prompt_text)
@@ -887,17 +887,16 @@ class QuizScreen(Screen):
         if self._state is QuizState.ASKING:
             if self._chord_buffer:
                 your_combo.set_combo(list(self._chord_buffer))
-                hint.update("Now press the next key…")
+                hint.update("Now press the next key...")
             else:
                 hint.update(
                     "Press the shortcut · Space if you don't know · F4 to skip forever"
                 )
             return
 
-        expected_seq = self._expected_seq(shortcut)
+        expected_seq = self._expected_seq(shortcut, pack)
 
         if self._state is QuizState.CORRECT_DONE:
-            # Show the canonical pack combo (full chord for chord packs).
             your_combo.set_combo(expected_seq, chip_class="correct")
             verdict.update("Correct")
             verdict.add_class("correct")
@@ -922,7 +921,7 @@ class QuizScreen(Screen):
             demo_row.mount(TextBufferDemo(shortcut.demo_before, shortcut.demo_after))
         if self._chord_buffer:
             your_combo.set_combo(list(self._chord_buffer))
-            hint.update("Now press the next key…")
+            hint.update("Now press the next key...")
         else:
             if self._last_pressed_seq:
                 your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
@@ -953,10 +952,10 @@ class QuizScreen(Screen):
 
     def _handle_asking(self, event: events.Key) -> None:
         event.stop()
-        shortcut = self._current()
-        assert shortcut is not None
+        current = self._current()
+        assert current is not None
+        shortcut, pack = current
 
-        # "Don't know" = Space at the very start (no chord-progress)
         if event.key == "space" and not self._chord_buffer:
             self._pending_elapsed_ms = self._elapsed_ms()
             self._last_pressed_seq = []
@@ -969,9 +968,8 @@ class QuizScreen(Screen):
 
         self._chord_buffer.append(event.key)
 
-        # Wrong at the current position: complete the attempt as just what they pressed.
         position = len(self._chord_buffer) - 1
-        if not self._match_position(position, event.key, shortcut):
+        if not self._match_position(position, event.key, shortcut, pack):
             self._pending_elapsed_ms = self._elapsed_ms()
             self._last_pressed_seq = list(self._chord_buffer)
             self._chord_buffer = []
@@ -979,12 +977,10 @@ class QuizScreen(Screen):
             self._render_state()
             return
 
-        # Wait for more keys if chord is incomplete.
-        if len(self._chord_buffer) < self._expected_chord_length():
+        if len(self._chord_buffer) < self._expected_chord_length(pack):
             self._render_state()
             return
 
-        # Full sequence collected and all positions matched — correct.
         self._pending_elapsed_ms = self._elapsed_ms()
         self._last_pressed_seq = list(self._chord_buffer)
         self._chord_buffer = []
@@ -999,44 +995,39 @@ class QuizScreen(Screen):
             self._finalize(correct=True)
 
     def _handle_wrong_practice(self, event: events.Key) -> None:
-        shortcut = self._current()
-        assert shortcut is not None
+        current = self._current()
+        assert current is not None
+        shortcut, pack = current
 
-        # Empty buffer + Y = "got it right" override
         if not self._chord_buffer and event.key == "y":
             event.stop()
             self._remember_alias_seq(
-                self._last_pressed_seq, self._expected_seq(shortcut)
+                self._last_pressed_seq, self._expected_seq(shortcut, pack)
             )
             self._finalize(correct=True)
             return
 
-        # Empty buffer + Enter = skip practice
         if not self._chord_buffer and event.key == "enter":
             event.stop()
             self._finalize(correct=False)
             return
 
-        # Otherwise: collect chord keys for retry
         self._chord_buffer.append(event.key)
 
         position = len(self._chord_buffer) - 1
-        if not self._match_position(position, event.key, shortcut):
-            # Wrong key at this position: surface what they pressed and reset buffer.
+        if not self._match_position(position, event.key, shortcut, pack):
             self._last_pressed_seq = list(self._chord_buffer)
             self._chord_buffer = []
             self._render_state()
             return
 
-        # Need more keys: render progress so user sees their press.
-        if len(self._chord_buffer) < self._expected_chord_length():
+        if len(self._chord_buffer) < self._expected_chord_length(pack):
             self._render_state()
             return
 
-        # Full sequence collected on retry — all positions matched.
         event.stop()
         self._chord_buffer = []
-        self._finalize(correct=False)  # was wrong on first attempt; just practiced
+        self._finalize(correct=False)
 
     def _remember_alias_seq(
         self, pressed_seq: list[str], expected_seq: list[str]
@@ -1058,10 +1049,14 @@ class QuizScreen(Screen):
             self._storage.save_aliases(self._aliases)
 
     def _finalize(self, *, correct: bool) -> None:
-        shortcut = self._current()
-        if shortcut is not None:
+        current = self._current()
+        if current is not None:
+            shortcut, pack = current
             self._record_answer(
-                shortcut, correct=correct, response_time_ms=self._pending_elapsed_ms
+                shortcut,
+                pack,
+                correct=correct,
+                response_time_ms=self._pending_elapsed_ms,
             )
         self._advance()
 
@@ -1080,9 +1075,9 @@ class QuizScreen(Screen):
         return (self._first_key_ns - self._start_ns) // 1_000_000
 
     def _record_answer(
-        self, shortcut: Shortcut, *, correct: bool, response_time_ms: int
+        self, shortcut: Shortcut, pack: Pack, *, correct: bool, response_time_ms: int
     ) -> None:
-        shortcut_id = self._pack.shortcut_id(shortcut)
+        shortcut_id = pack.shortcut_id(shortcut)
         card = self._cards.get(shortcut_id, Card())
         updated, log = review(
             card,
@@ -1097,19 +1092,19 @@ class QuizScreen(Screen):
             "time_to_first_keystroke_ms": self._first_key_elapsed_ms(),
         }
         self._storage.append_review(shortcut_id, log, signals=signals)
-        pack_sid = f"{self._pack.id}::{shortcut_id}"
+        pack_sid = f"{pack.id}::{shortcut_id}"
         if pack_sid not in self._seen:
             self._seen.add(pack_sid)
             self._storage.save_seen(self._seen)
 
     def action_dismiss_card(self) -> None:
-        shortcut = self._current()
-        if shortcut is None:
+        current = self._current()
+        if current is None:
             return
+        shortcut, pack = current
         self._cancel_auto_advance()
-        self._disabled.add(self._pack.shortcut_id(shortcut))
+        self._disabled.add(pack.shortcut_id(shortcut))
         self._storage.save_disabled(self._disabled)
-        # Skip recording an FSRS rating; just move on.
         self._advance()
 
 
