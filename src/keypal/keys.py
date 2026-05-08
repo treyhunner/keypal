@@ -49,6 +49,8 @@ SYMBOL_NAMES: dict[str, str] = {
     "apostrophe": "'",
     "vertical_line": "|",
     "vertical_bar": "|",
+    "\n": "enter",  # raw newline byte; Textual sometimes reports this for Enter or Alt+Enter
+    "\r": "enter",  # raw carriage return byte; same situation
 }
 
 SPECIAL_KEY_NAMES: dict[str, str] = {
