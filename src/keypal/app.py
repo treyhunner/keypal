@@ -1090,7 +1090,7 @@ class QuizScreen(Screen):
             parts.append(prettify_key(self._seq_base))
             classes.append("correct" if self._seq_remaining_base is None else "")
             your_combo.set_combo_classes(parts, classes)
-            hint.update("Press each key separately · Space to give up")
+            hint.update(self._sequential_hint())
             return
 
         expected_seq = self._expected_seq(shortcut, pack)
@@ -1153,6 +1153,17 @@ class QuizScreen(Screen):
             self._handle_sequential(event)
         else:
             self._handle_wrong_practice(event)
+
+    def _sequential_hint(self) -> str:
+        remaining = []
+        for mod in self._seq_remaining_mods:
+            pretty = prettify_key(mod)
+            remaining.append(f"any {pretty}+key combo")
+        if self._seq_remaining_base is not None:
+            remaining.append(prettify_key(self._seq_remaining_base))
+        if remaining:
+            return f"Press {', then '.join(remaining)} · Space to give up"
+        return ""
 
     def _enter_sequential(self, shortcut: Shortcut, pack: Pack) -> None:
         combo = shortcut.keys[0]
