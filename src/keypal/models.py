@@ -17,6 +17,10 @@ class Shortcut:
     shared_id: str | None = (
         None  # when set, identifies the FSRS card across packs (e.g. "readline:Move to start of line")
     )
+    demo_before: str | None = (
+        None  # text-edit demo: state before the shortcut runs (use '│' as cursor)
+    )
+    demo_after: str | None = None  # text-edit demo: state after the shortcut runs
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,8 @@ def parse_pack(data: dict[str, Any]) -> Pack:
             hint=item.get("hint"),
             command=item.get("command"),
             shared_id=item.get("shared_id"),
+            demo_before=item.get("demo_before"),
+            demo_after=item.get("demo_after"),
         )
         for item in data.get("shortcuts", [])
     )

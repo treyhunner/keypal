@@ -181,6 +181,31 @@ KeyChip.wrong {
     text-style: bold;
 }
 
+#demo-label {
+    width: 100%;
+    text-align: center;
+    color: $text-muted;
+    height: 1;
+    margin-top: 1;
+}
+
+TextBufferDemo {
+    width: auto;
+    max-width: 100%;
+    height: 3;
+    border: round $primary;
+    padding: 0 1;
+    color: $foreground;
+    background: $surface;
+    content-align: center middle;
+}
+
+#demo-row {
+    width: 100%;
+    height: auto;
+    align-horizontal: center;
+}
+
 /* === Stats === */
 
 #stats-title {
@@ -270,6 +295,46 @@ class KeyCombo(Horizontal):
 
     def clear(self) -> None:
         self.remove_children()
+
+
+class TextBufferDemo(Static):
+    """Animated demo of a text-edit shortcut. Cycles before <-> after every 1.5s.
+
+    The before/after strings encode the cursor with the '│' character.
+    """
+
+    CYCLE_INTERVAL_S = 1.5
+
+    def __init__(self, before: str, after: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._before = before
+        self._after = after
+        self._showing_before = True
+        self._timer = None
+
+    def on_mount(self) -> None:
+        self._render_state()
+        self._timer = self.set_interval(self.CYCLE_INTERVAL_S, self._toggle)
+
+    def on_unmount(self) -> None:
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
+
+    def _toggle(self) -> None:
+        self._showing_before = not self._showing_before
+        self._render_state()
+
+    def _render_state(self) -> None:
+        text = self._before if self._showing_before else self._after
+        # Render the cursor cell as inverted; everything else as plain.
+        rendered = ""
+        for char in text:
+            if char == "│":
+                rendered += "[reverse] [/reverse]"
+            else:
+                rendered += char
+        self.update(rendered)
 
 
 class ConfirmSwapModal(ModalScreen[bool]):
@@ -646,6 +711,8 @@ class QuizScreen(Screen):
                 yield Static("", id="dot-3", classes="dot")
             yield Static("", id="expected-label")
             yield KeyCombo(id="expected-combo")
+            yield Static("", id="demo-label")
+            yield Horizontal(id="demo-row")
             yield Static("", id="hint")
         yield Footer()
 
@@ -709,6 +776,10 @@ class QuizScreen(Screen):
         verdict.remove_class("wrong")
         for i in (1, 2, 3):
             self.query_one(f"#dot-{i}", Static).update("")
+        demo_label = self.query_one("#demo-label", Static)
+        demo_row = self.query_one("#demo-row", Horizontal)
+        demo_label.update("")
+        demo_row.remove_children()
 
         if shortcut is None:
             progress.update("")
@@ -753,6 +824,9 @@ class QuizScreen(Screen):
         verdict.add_class("wrong")
         expected_label.update("Try this:")
         expected_combo.set_combo(expected_seq, chip_class="correct")
+        if shortcut.demo_before and shortcut.demo_after:
+            demo_label.update("What it does:")
+            demo_row.mount(TextBufferDemo(shortcut.demo_before, shortcut.demo_after))
         if self._chord_buffer:
             your_combo.set_combo(list(self._chord_buffer))
             hint.update("Now press the next key…")

@@ -7,46 +7,64 @@ description = "Navigation and editing shortcuts for bash and other readline-base
 action = "Move to start of line"
 keys = ["ctrl+a"]
 tags = ["navigation"]
+demo_before = "git commit -m│ 'message'"
+demo_after = "│git commit -m 'message'"
 
 [[shortcuts]]
 action = "Move to end of line"
 keys = ["ctrl+e"]
 tags = ["navigation"]
+demo_before = "│git commit -m 'message'"
+demo_after = "git commit -m 'message'│"
 
 [[shortcuts]]
 action = "Move forward one word"
 keys = ["alt+f", "ctrl+right"]
 tags = ["navigation"]
+demo_before = "git │commit -m 'message'"
+demo_after = "git commit│ -m 'message'"
 
 [[shortcuts]]
 action = "Move backward one word"
 keys = ["alt+b", "ctrl+left"]
 tags = ["navigation"]
+demo_before = "git commit -m │'message'"
+demo_after = "git commit │-m 'message'"
 
 [[shortcuts]]
 action = "Delete from cursor to end of line"
 keys = ["ctrl+k"]
 tags = ["editing"]
+demo_before = "git commit │-m 'message'"
+demo_after = "git commit │"
 
 [[shortcuts]]
 action = "Delete from cursor to start of line"
 keys = ["ctrl+u"]
 tags = ["editing"]
+demo_before = "git commit │-m 'message'"
+demo_after = "│-m 'message'"
 
 [[shortcuts]]
 action = "Delete word before cursor"
 keys = ["ctrl+w", "alt+backspace"]
 tags = ["editing"]
+demo_before = "git commit │-m 'message'"
+demo_after = "git │-m 'message'"
 
 [[shortcuts]]
 action = "Yank (paste) most recently killed text"
 keys = ["ctrl+y"]
 tags = ["editing"]
+demo_before = "git │-m 'message'"
+demo_after = "git commit │-m 'message'"
 
 [[shortcuts]]
 action = "Search command history"
 keys = ["ctrl+r"]
 tags = ["history"]
+demo_before = "│"
+demo_after = "(reverse-i-search)`'│"
 
 [[shortcuts]]
 action = "Clear screen"
