@@ -8,6 +8,7 @@ from keypal.scheduler import (
     PERSONAL_MIN_REVIEWS,
     SLOW_MS,
     Thresholds,
+    blend_thresholds,
     classify,
     compute_personal_thresholds,
     review,
@@ -174,3 +175,32 @@ def test_compute_personal_thresholds_filters_insane_values():
 def test_compute_personal_thresholds_filters_none_values():
     times = [None] * 50
     assert compute_personal_thresholds(times) is None
+
+
+def test_blend_thresholds_weight_zero_is_absolute():
+    absolute = Thresholds(fast_ms=2000, slow_ms=8000)
+    personal = Thresholds(fast_ms=1000, slow_ms=5000)
+    result = blend_thresholds(absolute, personal, weight=0.0)
+    assert result == absolute
+
+
+def test_blend_thresholds_weight_one_is_personal():
+    absolute = Thresholds(fast_ms=2000, slow_ms=8000)
+    personal = Thresholds(fast_ms=1000, slow_ms=5000)
+    result = blend_thresholds(absolute, personal, weight=1.0)
+    assert result == personal
+
+
+def test_blend_thresholds_midpoint():
+    absolute = Thresholds(fast_ms=2000, slow_ms=8000)
+    personal = Thresholds(fast_ms=1000, slow_ms=6000)
+    result = blend_thresholds(absolute, personal, weight=0.5)
+    assert result.fast_ms == 1500
+    assert result.slow_ms == 7000
+
+
+def test_blend_thresholds_clamps_weight():
+    absolute = Thresholds(fast_ms=2000, slow_ms=8000)
+    personal = Thresholds(fast_ms=1000, slow_ms=5000)
+    assert blend_thresholds(absolute, personal, weight=-1.0) == absolute
+    assert blend_thresholds(absolute, personal, weight=2.0) == personal

@@ -49,6 +49,20 @@ def compute_personal_thresholds(
     )
 
 
+def blend_thresholds(
+    absolute: Thresholds, personal: Thresholds, weight: float
+) -> Thresholds:
+    weight = max(0.0, min(1.0, weight))
+
+    def lerp(a: int, p: int) -> int:
+        return round(a + (p - a) * weight)
+
+    return Thresholds(
+        fast_ms=lerp(absolute.fast_ms, personal.fast_ms),
+        slow_ms=lerp(absolute.slow_ms, personal.slow_ms),
+    )
+
+
 def classify(
     correct: bool,
     response_time_ms: int,
