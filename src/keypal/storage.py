@@ -34,6 +34,10 @@ class Storage:
     def disabled_path(self) -> Path:
         return self.base_dir / "disabled.json"
 
+    @property
+    def seen_path(self) -> Path:
+        return self.base_dir / "seen.json"
+
     def load_cards(self) -> dict[str, Card]:
         if not self.cards_path.exists():
             return {}
@@ -82,3 +86,13 @@ class Storage:
     def save_disabled(self, disabled: set[str]) -> None:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.disabled_path.write_text(json.dumps(sorted(disabled), indent=2) + "\n")
+
+    def load_seen(self) -> set[str]:
+        """Set of "{pack_id}::{shortcut_id}" pairs the user has reviewed in that specific pack."""
+        if not self.seen_path.exists():
+            return set()
+        return set(json.loads(self.seen_path.read_text()))
+
+    def save_seen(self, seen: set[str]) -> None:
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.seen_path.write_text(json.dumps(sorted(seen), indent=2) + "\n")

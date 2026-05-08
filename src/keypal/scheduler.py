@@ -40,9 +40,11 @@ def select_session(
     new_per_session: int = DEFAULT_NEW_PER_SESSION,
     now: datetime | None = None,
     disabled: set[str] | None = None,
+    seen: set[str] | None = None,
 ) -> list[Shortcut]:
     now = now or datetime.now(timezone.utc)
     disabled = disabled or set()
+    seen = seen or set()
     due: list[Shortcut] = []
     new: list[Shortcut] = []
     for shortcut in pack.shortcuts:
@@ -50,8 +52,15 @@ def select_session(
         if sid in disabled:
             continue
         card = cards.get(sid)
+        is_shared_other = bool(
+            shortcut.shared_id
+        ) and not shortcut.shared_id.startswith(f"{pack.id}:")
+        unseen_in_pack = f"{pack.id}::{sid}" not in seen
         if card is None:
             new.append(shortcut)
         elif card.due is None or card.due <= now:
             due.append(shortcut)
+        elif is_shared_other and unseen_in_pack:
+            # Shared with another pack and never reviewed in *this* pack: introduce it once.
+            new.append(shortcut)
     return due + new[:new_per_session]

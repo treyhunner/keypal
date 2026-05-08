@@ -101,3 +101,29 @@ def test_select_session_excludes_disabled():
     disabled = {pack.shortcut_id(pack.shortcuts[1])}
     queue = select_session(pack, {}, disabled=disabled, new_per_session=10)
     assert [s.action for s in queue] == ["a", "c"]
+
+
+def test_select_session_introduces_shared_unseen_shortcuts():
+    """A shortcut shared with another pack, with FSRS state but not due, should
+    be introduced once in this pack."""
+    pack = Pack(
+        id="python_repl",
+        name="p",
+        description="d",
+        shortcuts=(
+            Shortcut(
+                action="Move to start of line",
+                keys=("ctrl+a",),
+                shared_id="readline:Move to start of line",
+            ),
+        ),
+    )
+    now = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    cards = {pack.shortcut_id(pack.shortcuts[0]): Card(due=now + timedelta(days=5))}
+    # Not seen yet in python_repl: include as intro.
+    queue = select_session(pack, cards, now=now, seen=set())
+    assert len(queue) == 1
+    # After being seen here: skip (not due).
+    seen = {f"python_repl::{pack.shortcut_id(pack.shortcuts[0])}"}
+    queue = select_session(pack, cards, now=now, seen=seen)
+    assert queue == []

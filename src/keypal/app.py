@@ -597,8 +597,9 @@ class QuizScreen(Screen):
         self._cards: dict[str, Card] = storage.load_cards()
         self._aliases: dict[str, set[str]] = storage.load_aliases()
         self._disabled: set[str] = storage.load_disabled()
+        self._seen: set[str] = storage.load_seen()
         self._shortcuts: list[Shortcut] = select_session(
-            pack, self._cards, disabled=self._disabled
+            pack, self._cards, disabled=self._disabled, seen=self._seen
         )
         self._index = 0
         self._state: QuizState = QuizState.ASKING
@@ -716,7 +717,13 @@ class QuizScreen(Screen):
             return
 
         progress.update(f"{self._index + 1} / {len(self._shortcuts)}")
-        prompt.update(shortcut.action)
+        prompt_text = shortcut.action
+        if shortcut.shared_id and not shortcut.shared_id.startswith(
+            f"{self._pack.id}:"
+        ):
+            ns = shortcut.shared_id.split(":", 1)[0]
+            prompt_text += f"  [$text-muted i](shared with {ns})[/]"
+        prompt.update(prompt_text)
 
         if self._state is QuizState.ASKING:
             if self._chord_buffer:
@@ -908,6 +915,10 @@ class QuizScreen(Screen):
         self._cards[shortcut_id] = updated
         self._storage.save_cards(self._cards)
         self._storage.append_review(shortcut_id, log)
+        pack_sid = f"{self._pack.id}::{shortcut_id}"
+        if pack_sid not in self._seen:
+            self._seen.add(pack_sid)
+            self._storage.save_seen(self._seen)
 
     def action_dismiss_card(self) -> None:
         shortcut = self._current()

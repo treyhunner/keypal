@@ -71,3 +71,10 @@ def test_disabled_roundtrip(tmp_path):
     disabled = {"obsidian:Open graph view", "tmux:Layout: tiled"}
     storage.save_disabled(disabled)
     assert storage.load_disabled() == disabled
+
+
+def test_seen_roundtrip(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    seen = {"python_repl::readline:Move to start of line", "tmux::next-window"}
+    storage.save_seen(seen)
+    assert storage.load_seen() == seen
