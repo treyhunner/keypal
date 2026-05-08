@@ -469,8 +469,12 @@ class BrowseScreen(Screen):
             for shortcut in self._pack.shortcuts:
                 action = shortcut.action
                 keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
+                shared = ""
+                if shortcut.shared_id and not shortcut.shared_id.startswith(f"{self._pack.id}:"):
+                    ns = shortcut.shared_id.split(":", 1)[0]
+                    shared = f"  [$text-muted i](common with {ns})[/]"
                 yield Static(
-                    f"{action:<42}  [b $primary]{keys}[/]",
+                    f"{action:<42}  [b $primary]{keys}[/]{shared}",
                     classes="browse-row",
                 )
         yield Footer()

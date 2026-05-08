@@ -1,0 +1,117 @@
+[pack]
+id = "python_repl"
+name = "Python REPL"
+description = "Python 3.13+ REPL shortcuts. Many overlap with readline (review counts toward both)."
+
+
+# === REPL-specific (no readline equivalent) ===
+
+[[shortcuts]]
+action = "Enter help mode"
+keys = ["f1"]
+tags = ["repl"]
+
+[[shortcuts]]
+action = "Enter history mode (copy code without prompts)"
+keys = ["f2"]
+tags = ["repl"]
+
+[[shortcuts]]
+action = "Enter paste/edit mode"
+keys = ["f3"]
+tags = ["repl"]
+
+[[shortcuts]]
+action = "Exit Python (sends EOF)"
+keys = ["ctrl+d"]
+tags = ["repl"]
+
+[[shortcuts]]
+action = "Cancel current input (KeyboardInterrupt)"
+keys = ["ctrl+c"]
+tags = ["repl"]
+
+[[shortcuts]]
+action = "Autocomplete"
+keys = ["tab"]
+tags = ["repl"]
+
+[[shortcuts]]
+action = "Run current code block (without re-entering it)"
+keys = ["alt+enter"]
+tags = ["repl"]
+
+
+# === Block navigation (REPL-specific behavior on top of readline-ish keys) ===
+
+[[shortcuts]]
+action = "Previous block in history"
+keys = ["up", "ctrl+p"]
+tags = ["history", "repl"]
+
+[[shortcuts]]
+action = "Next block in history"
+keys = ["down", "ctrl+n"]
+tags = ["history", "repl"]
+
+
+# === Shared with readline (same FSRS card) ===
+
+[[shortcuts]]
+action = "Move to start of line"
+keys = ["ctrl+a", "home"]
+tags = ["navigation"]
+shared_id = "readline:Move to start of line"
+
+[[shortcuts]]
+action = "Move to end of line"
+keys = ["ctrl+e", "end"]
+tags = ["navigation"]
+shared_id = "readline:Move to end of line"
+
+[[shortcuts]]
+action = "Move forward one word"
+keys = ["alt+f", "ctrl+right"]
+tags = ["navigation"]
+shared_id = "readline:Move forward one word"
+
+[[shortcuts]]
+action = "Move backward one word"
+keys = ["alt+b", "ctrl+left"]
+tags = ["navigation"]
+shared_id = "readline:Move backward one word"
+
+[[shortcuts]]
+action = "Delete from cursor to end of line"
+keys = ["ctrl+k"]
+tags = ["editing"]
+shared_id = "readline:Delete from cursor to end of line"
+
+[[shortcuts]]
+action = "Delete from cursor to start of line"
+keys = ["ctrl+u"]
+tags = ["editing"]
+shared_id = "readline:Delete from cursor to start of line"
+
+[[shortcuts]]
+action = "Delete word before cursor"
+keys = ["ctrl+w", "alt+backspace"]
+tags = ["editing"]
+shared_id = "readline:Delete word before cursor"
+
+[[shortcuts]]
+action = "Delete word after cursor"
+keys = ["alt+d"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Search command history"
+keys = ["ctrl+r"]
+tags = ["history"]
+shared_id = "readline:Search command history"
+
+[[shortcuts]]
+action = "Clear screen"
+keys = ["ctrl+l"]
+tags = ["display"]
+shared_id = "readline:Clear screen"
