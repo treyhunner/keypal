@@ -833,6 +833,11 @@ class QuizScreen(Screen):
             for i in (1, 2, 3):
                 cell = self.query_one(f"#dot-{i}", Static)
                 cell.update(self.DOT_CHAR if self._auto_advance_step >= i else "")
+            if shortcut.demo_before and shortcut.demo_after:
+                demo_label.update("What it does:")
+                demo_row.mount(
+                    TextBufferDemo(shortcut.demo_before, shortcut.demo_after)
+                )
             hint.update("Press Enter to continue · F4 to skip forever")
             return
 
