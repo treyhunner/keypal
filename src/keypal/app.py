@@ -325,10 +325,28 @@ TextBufferDemo {
     margin-bottom: 1;
 }
 
-.browse-row {
-    width: 100%;
+#browse-list {
+    height: auto;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+#browse-list ListItem {
     height: 1;
     padding: 0 1;
+    background: transparent;
+    margin: 0;
+}
+
+#browse-list ListItem.--highlight {
+    background: $boost;
+}
+
+#browse-hint {
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
 }
 
 .hidden {
@@ -545,7 +563,7 @@ class HomeScreen(Screen):
     def action_browse(self) -> None:
         pack = self._highlighted_pack()
         if pack is not None:
-            self.app.push_screen(BrowseScreen(pack))
+            self.app.push_screen(BrowseScreen(pack, self._storage))
 
     def __init__(self, packs: tuple[Pack, ...], storage: Storage) -> None:
         super().__init__()
@@ -727,9 +745,10 @@ class HomeScreen(Screen):
 class BrowseScreen(Screen):
     BINDINGS = [("escape", "app.pop_screen", "Back")]
 
-    def __init__(self, pack: Pack) -> None:
+    def __init__(self, pack: Pack, storage: Storage) -> None:
         super().__init__()
         self._pack = pack
+        self._storage = storage
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -742,20 +761,40 @@ class BrowseScreen(Screen):
                     f"All shortcuts shown after prefix [b]{pretty}[/]",
                     id="browse-prefix",
                 )
-            for shortcut in self._pack.shortcuts:
-                action = shortcut.action
-                keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
-                shared = ""
-                if shortcut.shared_id and not shortcut.shared_id.startswith(
-                    f"{self._pack.id}:"
-                ):
-                    ns = shortcut.shared_id.split(":", 1)[0]
-                    shared = f"  [$text-muted i](common with {ns})[/]"
-                yield Static(
-                    f"{action:<42}  [b $primary]{keys}[/]{shared}",
-                    classes="browse-row",
-                )
+            yield ListView(
+                *(
+                    ListItem(
+                        Static(self._browse_label(shortcut)),
+                        id=f"shortcut-{i}",
+                    )
+                    for i, shortcut in enumerate(self._pack.shortcuts)
+                ),
+                id="browse-list",
+            )
+            yield Static("Enter to practice · Esc to go back", id="browse-hint")
         yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#browse-list", ListView).focus()
+
+    def _browse_label(self, shortcut: Shortcut) -> str:
+        action = shortcut.action
+        keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
+        shared = ""
+        if shortcut.shared_id and not shortcut.shared_id.startswith(
+            f"{self._pack.id}:"
+        ):
+            ns = shortcut.shared_id.split(":", 1)[0]
+            shared = f"  [$text-muted i](common with {ns})[/]"
+        return f"{action:<42}  [b $primary]{keys}[/]{shared}"
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        prefix = "shortcut-"
+        if event.item.id is None or not event.item.id.startswith(prefix):
+            return
+        idx = int(event.item.id[len(prefix) :])
+        shortcut = self._pack.shortcuts[idx]
+        self.app.push_screen(QuizScreen((self._pack,), self._storage, force=[shortcut]))
 
 
 class DiagnosticScreen(Screen):
@@ -854,7 +893,12 @@ class QuizScreen(Screen):
     AUTO_ADVANCE_INTERVAL_S = 1.0
     DOT_CHAR = "●"
 
-    def __init__(self, packs: tuple[Pack, ...], storage: Storage) -> None:
+    def __init__(
+        self,
+        packs: tuple[Pack, ...],
+        storage: Storage,
+        force: list[Shortcut] | None = None,
+    ) -> None:
         super().__init__()
         self._packs = packs
         self._storage = storage
@@ -863,9 +907,12 @@ class QuizScreen(Screen):
         self._disabled: set[str] = storage.load_disabled()
         self._seen: set[str] = storage.load_seen()
         self._thresholds = self._compute_thresholds()
-        self._session: list[tuple[Shortcut, Pack]] = select_multi_session(
-            packs, self._cards, disabled=self._disabled, seen=self._seen
-        )
+        if force is not None:
+            self._session = [(s, packs[0]) for s in force]
+        else:
+            self._session = select_multi_session(
+                packs, self._cards, disabled=self._disabled, seen=self._seen
+            )
         self._index = 0
         self._state: QuizState = QuizState.ASKING
         self._start_ns: int | None = None
