@@ -837,7 +837,7 @@ class StatsScreen(Screen):
                 for s in pack.shortcuts
                 if pack.shortcut_id(s) not in disabled
             ]
-            tracked = sum(1 for sid in active_ids if sid in cards)
+            tracked = len(set(active_ids) & cards.keys())
             due = sum(
                 1
                 for sid in active_ids
