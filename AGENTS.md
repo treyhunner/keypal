@@ -56,6 +56,10 @@ src/keypal/
 - **Terminal-emulator-level interception** (GNOME Terminal eating Ctrl+Shift+F for "Find", Ctrl+Shift+T for "New Tab", etc.) is not fixable in code. The diagnostic screen (`D` from home) shows what Textual receives, which is useful for telling user vs terminal vs keypal bugs apart.
 - **Pack TOMLs**: drop the `command` field on wrapper-style tmux binds (e.g. `command-prompt -I "..."`) to avoid over-matching across multiple shortcuts that all start with `command-prompt`.
 - **`textual` `ENABLE_COMMAND_PALETTE = False`** on `KeypalApp` so Ctrl+P reaches the quiz instead of opening Textual's palette.
+- **Textual issue #6378 monkey-patch** at the top of `src/keypal/app.py`. Textual's parser silently drops the Alt prefix for keys whose ANSI sequence resolves through the `ANSI_SEQUENCES_KEYS` tuple branch (Alt+Enter, Alt+Space, Alt+Backspace, Alt+Ctrl+letter). The patch adds the missing alt-prefix logic. When upgrading Textual, check whether upstream merged the fix and remove the patch.
+- **`LegacyKeyboardDriver`** suppresses the kitty keyboard protocol enable/disable sequences (`\x1b[>1u` / `\x1b[<u`). Belt-and-suspenders for terminal stacks where the modern protocol is partially supported and confuses Textual's parser.
+- **`shared_id` makes `Pack.shortcut_id(shortcut)` return the shared id**, so identical shared_id values across packs collapse to one FSRS card.
+- **Demos for shared shortcuts inherit** from the source shortcut at load time (see `_inherit_demos` in `models.py`). Don't duplicate `demo_before`/`demo_after` across packs.
 
 ## Storage layout
 
@@ -65,6 +69,7 @@ Default base dir: `platformdirs.user_data_dir("keypal")` (e.g. `~/.local/share/k
 - `review_log.jsonl`: append-only NDJSON-style log; one `{shortcut_id, log}` per line.
 - `aliases.json`: `{expected_combo: [pressed_combos]}` saved when user presses Y on a wrong answer.
 - `disabled.json`: array of shortcut IDs the user dismissed via F4.
+- `seen.json`: array of `"{pack_id}::{shortcut_id}"` strings; tracks which shared shortcuts the user has been introduced to in each pack (so a shared shortcut shows once per pack even if its FSRS card isn't due).
 
 ## TUI key conventions
 
