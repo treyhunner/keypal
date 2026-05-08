@@ -49,6 +49,28 @@ def compute_personal_thresholds(
     )
 
 
+def get_thresholds(
+    signals: Iterable[dict],
+) -> Thresholds:
+    response_times = [s.get("response_time_ms") for s in signals]
+    n = len(
+        [
+            rt
+            for rt in response_times
+            if rt is not None and 0 <= rt <= SANITY_MAX_TIMING_MS
+        ]
+    )
+    if n < PERSONAL_MIN_REVIEWS:
+        return DEFAULT_THRESHOLDS
+    personal = compute_personal_thresholds(response_times)
+    if personal is None:
+        return DEFAULT_THRESHOLDS
+    if n >= PERSONAL_FULL_REVIEWS:
+        return personal
+    weight = (n - PERSONAL_MIN_REVIEWS) / (PERSONAL_FULL_REVIEWS - PERSONAL_MIN_REVIEWS)
+    return blend_thresholds(DEFAULT_THRESHOLDS, personal, weight)
+
+
 def blend_thresholds(
     absolute: Thresholds, personal: Thresholds, weight: float
 ) -> Thresholds:

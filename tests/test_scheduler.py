@@ -4,13 +4,16 @@ from fsrs import Card, Rating
 
 from keypal.models import Pack, Shortcut
 from keypal.scheduler import (
+    DEFAULT_THRESHOLDS,
     FAST_MS,
+    PERSONAL_FULL_REVIEWS,
     PERSONAL_MIN_REVIEWS,
     SLOW_MS,
     Thresholds,
     blend_thresholds,
     classify,
     compute_personal_thresholds,
+    get_thresholds,
     review,
     select_session,
 )
@@ -204,3 +207,31 @@ def test_blend_thresholds_clamps_weight():
     personal = Thresholds(fast_ms=1000, slow_ms=5000)
     assert blend_thresholds(absolute, personal, weight=-1.0) == absolute
     assert blend_thresholds(absolute, personal, weight=2.0) == personal
+
+
+def test_get_thresholds_returns_defaults_below_minimum():
+    signals = [{"response_time_ms": 1500}] * (PERSONAL_MIN_REVIEWS - 1)
+    assert get_thresholds(signals) == DEFAULT_THRESHOLDS
+
+
+def test_get_thresholds_returns_personal_above_full():
+    signals = [
+        {"response_time_ms": i * 100} for i in range(1, PERSONAL_FULL_REVIEWS + 1)
+    ]
+    result = get_thresholds(signals)
+    personal = compute_personal_thresholds([s["response_time_ms"] for s in signals])
+    assert result == personal
+
+
+def test_get_thresholds_blends_between_min_and_full():
+    n = (PERSONAL_MIN_REVIEWS + PERSONAL_FULL_REVIEWS) // 2
+    signals = [{"response_time_ms": i * 10} for i in range(1, n + 1)]
+    result = get_thresholds(signals)
+    personal = compute_personal_thresholds([s["response_time_ms"] for s in signals])
+    assert personal is not None
+    assert personal.fast_ms < result.fast_ms < DEFAULT_THRESHOLDS.fast_ms
+
+
+def test_get_thresholds_ignores_missing_response_time():
+    signals = [{}] * 50
+    assert get_thresholds(signals) == DEFAULT_THRESHOLDS
