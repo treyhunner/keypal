@@ -104,3 +104,18 @@ class Storage:
     def save_seen(self, seen: set[str]) -> None:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.seen_path.write_text(json.dumps(sorted(seen), indent=2) + "\n")
+
+    @property
+    def selected_packs_path(self) -> Path:
+        return self.base_dir / "selected_packs.json"
+
+    def load_selected_packs(self) -> set[str] | None:
+        if not self.selected_packs_path.exists():
+            return None
+        return set(json.loads(self.selected_packs_path.read_text()))
+
+    def save_selected_packs(self, pack_ids: set[str]) -> None:
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.selected_packs_path.write_text(
+            json.dumps(sorted(pack_ids), indent=2) + "\n"
+        )

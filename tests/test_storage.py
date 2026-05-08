@@ -92,3 +92,15 @@ def test_seen_roundtrip(tmp_path):
     seen = {"python_repl::readline:Move to start of line", "tmux::next-window"}
     storage.save_seen(seen)
     assert storage.load_seen() == seen
+
+
+def test_selected_packs_returns_none_when_missing(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    assert storage.load_selected_packs() is None
+
+
+def test_selected_packs_roundtrip(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    pack_ids = {"readline", "tmux", "python_repl"}
+    storage.save_selected_packs(pack_ids)
+    assert storage.load_selected_packs() == pack_ids
