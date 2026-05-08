@@ -501,6 +501,7 @@ class ConfirmSwapModal(ModalScreen[bool]):
 class HomeScreen(Screen):
     BINDINGS = [
         ("q", "app.quit", "Quit"),
+        ("p", "practice", "Practice"),
         ("x", "toggle_pack", "Toggle pack"),
         ("b", "browse", "Browse pack"),
         ("s", "stats", "Stats"),
@@ -531,16 +532,14 @@ class HomeScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="home-content"):
-            yield Button("Practice", id="practice-btn", variant="primary")
+            btn = Button("Practice", id="practice-btn", variant="primary")
+            btn.can_focus = False
+            yield btn
             yield ListView(
                 *(
                     ListItem(
                         Horizontal(
-                            Checkbox(
-                                "",
-                                value=pack.id in self._selected,
-                                id=f"check-{pack.id}",
-                            ),
+                            self._pack_checkbox(pack),
                             Static(pack.name, classes="pack-name"),
                             classes="pack-header",
                         ),
@@ -552,6 +551,11 @@ class HomeScreen(Screen):
                 )
             )
         yield Footer()
+
+    def _pack_checkbox(self, pack: Pack) -> Checkbox:
+        cb = Checkbox("", value=pack.id in self._selected, id=f"check-{pack.id}")
+        cb.can_focus = False
+        return cb
 
     def on_screen_resume(self) -> None:
         for pack in self._packs:
@@ -626,11 +630,14 @@ class HomeScreen(Screen):
             parts.append(f"{shared_known} shared")
         return " · ".join(parts)
 
+    def action_practice(self) -> None:
+        selected = tuple(p for p in self._packs if p.id in self._selected)
+        if selected:
+            self._start_quiz(selected)
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "practice-btn":
-            selected = tuple(p for p in self._packs if p.id in self._selected)
-            if selected:
-                self._start_quiz(selected)
+            self.action_practice()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         prefix = "pack-"
