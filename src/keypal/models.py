@@ -1,5 +1,5 @@
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -71,11 +71,40 @@ def builtin_packs() -> tuple[Pack, ...]:
     from keypal.tmux import apply_tmux_overrides
 
     package = resources.files("keypal.packs")
-    packs = []
+    packs: list[Pack] = []
     for entry in package.iterdir():
         if entry.name.endswith(".toml"):
             pack = parse_pack(tomllib.loads(entry.read_text()))
             pack = apply_tmux_overrides(pack)
             pack = apply_obsidian_overrides(pack)
             packs.append(pack)
-    return tuple(packs)
+    return _inherit_demos(packs)
+
+
+def _inherit_demos(packs: list[Pack]) -> tuple[Pack, ...]:
+    """Fill in missing demo fields on shared shortcuts from their shared_id source."""
+    demo_by_id: dict[str, tuple[str, str]] = {}
+    for pack in packs:
+        for shortcut in pack.shortcuts:
+            if shortcut.demo_before and shortcut.demo_after:
+                demo_by_id[pack.shortcut_id(shortcut)] = (
+                    shortcut.demo_before,
+                    shortcut.demo_after,
+                )
+    result = []
+    for pack in packs:
+        new_shortcuts = []
+        for shortcut in pack.shortcuts:
+            if (
+                shortcut.shared_id
+                and not shortcut.demo_before
+                and shortcut.shared_id in demo_by_id
+            ):
+                before, after = demo_by_id[shortcut.shared_id]
+                new_shortcuts.append(
+                    replace(shortcut, demo_before=before, demo_after=after)
+                )
+            else:
+                new_shortcuts.append(shortcut)
+        result.append(replace(pack, shortcuts=tuple(new_shortcuts)))
+    return tuple(result)
