@@ -23,10 +23,12 @@ just run
 
 ## Built-in packs
 
-- **`readline`**: common bash / readline shortcuts (Ctrl+A, Alt+F, Ctrl+W, etc.)
-- **`python_repl`**: Python 3.13+ REPL (F1/F2/F3 modes, Tab autocomplete, plus shared readline overlap)
-- **`tmux`**: your live tmux config, parsed from `tmux list-keys` at startup
-- **`obsidian`**: your live Obsidian hotkeys, read from `~/.config/obsidian/.../hotkeys.json`
+| Pack          | What                                                                                |
+| ------------- | ----------------------------------------------------------------------------------- |
+| `readline`    | Common bash / readline shortcuts (Ctrl+A, Alt+F, Ctrl+W, etc.)                      |
+| `python_repl` | Python 3.13+ REPL: F1/F2/F3 modes, Tab autocomplete, plus shared readline overlap   |
+| `tmux`        | Your live tmux config, parsed from `tmux list-keys` at startup                      |
+| `obsidian`    | Your live Obsidian hotkeys, read from `~/.config/obsidian/.../hotkeys.json`         |
 
 The `tmux` and `obsidian` packs are *hybrid*: a curated list of common shortcuts with friendly descriptions, with **your actual key bindings substituted in** if you have customs. Change a binding in tmux or Obsidian, restart keypal, and the pack reflects it.
 
@@ -36,21 +38,25 @@ A `shared_id` mechanism lets shortcuts in different packs share the same FSRS ca
 
 ### Home screen
 
-- Arrow keys: navigate between packs
-- Enter: start practicing the highlighted pack
-- **B**: browse the highlighted pack (read-only cheat sheet)
-- **S**: stats (cards by FSRS state, per-pack progress)
-- **D**: diagnostic screen for testing what your terminal is sending
-- **Q**: quit
+| Key        | Action                                                  |
+| ---------- | ------------------------------------------------------- |
+| Arrow keys | Navigate between packs                                  |
+| Enter      | Start practicing the highlighted pack                   |
+| **B**      | Browse the highlighted pack (read-only cheat sheet)     |
+| **S**      | Stats (cards by FSRS state, per-pack progress)          |
+| **D**      | Diagnostic screen for testing what your terminal sends  |
+| **Q**      | Quit                                                    |
 
 ### In a quiz session
 
-- (the shortcut): submit your answer
-- Space: "I don't know" (treated as wrong)
-- Enter: continue after a correct answer
-- Y: after a wrong answer, claim "I actually had it right" (saves an alias for terminal-mistranslated keys)
-- **F4**: skip this shortcut forever (won't appear in future sessions)
-- Esc: back to home
+| Key            | Action                                                                |
+| -------------- | --------------------------------------------------------------------- |
+| (the shortcut) | Submit your answer                                                    |
+| Space          | "I don't know" (treated as wrong)                                     |
+| Enter          | Continue after a correct answer                                       |
+| Y              | After wrong: claim "I actually had it right" and save it as an alias  |
+| **F4**         | Skip this shortcut forever (won't appear in future sessions)          |
+| Esc            | Back to home                                                          |
 
 After a correct answer, three dots fill in left to right over three seconds, then auto-advances. Press Enter any time to skip the wait.
 
