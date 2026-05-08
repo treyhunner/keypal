@@ -45,13 +45,23 @@ tags = ["repl"]
 # === Block navigation (REPL-specific behavior on top of readline-ish keys) ===
 
 [[shortcuts]]
+action = "Previous line or block (history)"
+keys = ["up"]
+tags = ["history", "repl"]
+
+[[shortcuts]]
+action = "Next line or block (history)"
+keys = ["down"]
+tags = ["history", "repl"]
+
+[[shortcuts]]
 action = "Previous block in history"
-keys = ["up", "ctrl+p"]
+keys = ["ctrl+p"]
 tags = ["history", "repl"]
 
 [[shortcuts]]
 action = "Next block in history"
-keys = ["down", "ctrl+n"]
+keys = ["ctrl+n"]
 tags = ["history", "repl"]
 
 

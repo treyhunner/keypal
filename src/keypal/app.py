@@ -401,22 +401,32 @@ class HomeScreen(Screen):
         now = datetime.now(timezone.utc)
         due = 0
         new = 0
+        shared_known = (
+            0  # shortcut shared with another pack and already practiced (not due)
+        )
         for shortcut in pack.shortcuts:
             sid = pack.shortcut_id(shortcut)
             if sid in disabled:
                 continue
             card = cards.get(sid)
+            is_shared = bool(shortcut.shared_id) and not shortcut.shared_id.startswith(
+                f"{pack.id}:"
+            )
             if card is None:
                 new += 1
             elif card.due is None or card.due <= now:
                 due += 1
-        if due == 0 and new == 0:
+            elif is_shared:
+                shared_known += 1
+        if due == 0 and new == 0 and shared_known == 0:
             return "all caught up"
         parts = []
         if due:
             parts.append(f"{due} due")
         if new:
             parts.append(f"{new} new")
+        if shared_known:
+            parts.append(f"{shared_known} shared")
         return " · ".join(parts)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
