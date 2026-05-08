@@ -40,8 +40,22 @@ def test_append_and_read_reviews_roundtrip(tmp_path):
     storage.append_review("readline:Bar", log)
 
     reviews = list(storage.read_reviews())
-    assert [sid for sid, _ in reviews] == ["readline:Foo", "readline:Bar"]
+    assert [sid for sid, _log, _sig in reviews] == ["readline:Foo", "readline:Bar"]
     assert reviews[0][1].rating == Rating.Good
+    assert reviews[0][2] == {}
+
+
+def test_append_review_with_signals_roundtrip(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    card = Card()
+    _, log = Scheduler().review_card(card, Rating.Good, review_duration=1500)
+    signals = {"response_time_ms": 1500, "time_to_first_keystroke_ms": 800}
+
+    storage.append_review("readline:Foo", log, signals=signals)
+
+    reviews = list(storage.read_reviews())
+    assert len(reviews) == 1
+    assert reviews[0][2] == signals
 
 
 def test_read_reviews_empty_when_missing(tmp_path):

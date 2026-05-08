@@ -49,13 +49,20 @@ class Storage:
         serialized = {sid: card.to_dict() for sid, card in cards.items()}
         self.cards_path.write_text(json.dumps(serialized, indent=2) + "\n")
 
-    def append_review(self, shortcut_id: str, log: ReviewLog) -> None:
+    def append_review(
+        self,
+        shortcut_id: str,
+        log: ReviewLog,
+        signals: dict[str, int | None] | None = None,
+    ) -> None:
         self.base_dir.mkdir(parents=True, exist_ok=True)
-        record = {"shortcut_id": shortcut_id, "log": log.to_dict()}
+        record: dict = {"shortcut_id": shortcut_id, "log": log.to_dict()}
+        if signals:
+            record["signals"] = signals
         with open(self.review_log_path, mode="at") as file:
             file.write(json.dumps(record) + "\n")
 
-    def read_reviews(self) -> Iterator[tuple[str, ReviewLog]]:
+    def read_reviews(self) -> Iterator[tuple[str, ReviewLog, dict]]:
         if not self.review_log_path.exists():
             return
         with open(self.review_log_path) as file:
@@ -63,7 +70,8 @@ class Storage:
                 if not line.strip():
                     continue
                 record = json.loads(line)
-                yield record["shortcut_id"], ReviewLog.from_dict(record["log"])
+                signals = record.get("signals", {})
+                yield record["shortcut_id"], ReviewLog.from_dict(record["log"]), signals
 
     def load_aliases(self) -> dict[str, set[str]]:
         if not self.aliases_path.exists():
