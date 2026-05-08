@@ -25,7 +25,10 @@ def test_save_and_load_cards_roundtrip(tmp_path):
     storage.save_cards(cards)
     loaded = storage.load_cards()
     assert loaded.keys() == cards.keys()
-    assert loaded["readline:Move forward one word"].to_dict() == cards["readline:Move forward one word"].to_dict()
+    assert (
+        loaded["readline:Move forward one word"].to_dict()
+        == cards["readline:Move forward one word"].to_dict()
+    )
 
 
 def test_append_and_read_reviews_roundtrip(tmp_path):

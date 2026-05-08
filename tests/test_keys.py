@@ -96,6 +96,7 @@ def test_matches_plus_key():
 
 def test_prettify_combo_plus_key():
     from keypal.keys import prettify_combo as pc
+
     assert pc("+") == ["+"]
     assert pc("ctrl++") == ["Ctrl", "+"]
     assert pc("alt+plus") == ["Alt", "+"]

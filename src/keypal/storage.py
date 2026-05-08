@@ -69,7 +69,9 @@ class Storage:
 
     def save_aliases(self, aliases: dict[str, set[str]]) -> None:
         self.base_dir.mkdir(parents=True, exist_ok=True)
-        serialized = {expected: sorted(pressed) for expected, pressed in aliases.items()}
+        serialized = {
+            expected: sorted(pressed) for expected, pressed in aliases.items()
+        }
         self.aliases_path.write_text(json.dumps(serialized, indent=2) + "\n")
 
     def load_disabled(self) -> set[str]:

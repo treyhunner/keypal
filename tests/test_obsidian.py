@@ -13,7 +13,10 @@ def test_obsidian_binding_simple_modifier_letter():
 
 
 def test_obsidian_binding_arrow_with_alt():
-    assert obsidian_binding_to_combo({"modifiers": ["Alt"], "key": "ArrowLeft"}) == "alt+left"
+    assert (
+        obsidian_binding_to_combo({"modifiers": ["Alt"], "key": "ArrowLeft"})
+        == "alt+left"
+    )
 
 
 def test_obsidian_binding_multiple_modifiers():
@@ -29,14 +32,18 @@ def test_obsidian_binding_special_key_no_modifier():
 
 def test_parse_obsidian_hotkeys_filters_empty_bindings(tmp_path):
     path = tmp_path / "hotkeys.json"
-    path.write_text(json.dumps({
-        "app:go-back": [{"modifiers": ["Alt"], "key": "ArrowLeft"}],
-        "editor:delete-paragraph": [],
-        "editor:toggle-checklist-status": [
-            {"modifiers": ["Mod"], "key": "l"},
-            {"modifiers": ["Mod"], "key": "Enter"},
-        ],
-    }))
+    path.write_text(
+        json.dumps(
+            {
+                "app:go-back": [{"modifiers": ["Alt"], "key": "ArrowLeft"}],
+                "editor:delete-paragraph": [],
+                "editor:toggle-checklist-status": [
+                    {"modifiers": ["Mod"], "key": "l"},
+                    {"modifiers": ["Mod"], "key": "Enter"},
+                ],
+            }
+        )
+    )
     result = parse_obsidian_hotkeys(path)
     assert result == {
         "app:go-back": ["alt+left"],

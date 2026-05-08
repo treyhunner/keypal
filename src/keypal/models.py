@@ -11,8 +11,12 @@ class Shortcut:
     keys: tuple[str, ...]
     tags: tuple[str, ...] = ()
     hint: str | None = None
-    command: str | None = None  # stable ID joining shortcut to live config (e.g. tmux command, obsidian command id)
-    shared_id: str | None = None  # when set, identifies the FSRS card across packs (e.g. "readline:Move to start of line")
+    command: str | None = (
+        None  # stable ID joining shortcut to live config (e.g. tmux command, obsidian command id)
+    )
+    shared_id: str | None = (
+        None  # when set, identifies the FSRS card across packs (e.g. "readline:Move to start of line")
+    )
 
 
 @dataclass(frozen=True)

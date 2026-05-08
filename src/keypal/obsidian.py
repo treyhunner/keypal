@@ -79,7 +79,9 @@ def parse_obsidian_hotkeys(path: Path) -> dict[str, list[str]]:
     return result
 
 
-def apply_obsidian_overrides(pack: Pack, *, hotkeys: dict[str, list[str]] | None = None) -> Pack:
+def apply_obsidian_overrides(
+    pack: Pack, *, hotkeys: dict[str, list[str]] | None = None
+) -> Pack:
     """Substitute keys from the user's hotkeys.json on shortcuts whose command matches."""
     if pack.id != "obsidian":
         return pack

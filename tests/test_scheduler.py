@@ -68,7 +68,9 @@ def test_select_session_due_cards_first_then_new():
     now = datetime(2026, 5, 1, tzinfo=timezone.utc)
     cards = {
         pack.shortcut_id(pack.shortcuts[0]): Card(due=now - timedelta(hours=1)),  # due
-        pack.shortcut_id(pack.shortcuts[1]): Card(due=now + timedelta(hours=1)),  # not due
+        pack.shortcut_id(pack.shortcuts[1]): Card(
+            due=now + timedelta(hours=1)
+        ),  # not due
     }
     queue = select_session(pack, cards, new_per_session=1, now=now)
     # Due first (a), then 1 new (c, since b is not-due, d is the second new)
@@ -86,7 +88,9 @@ def test_select_session_skips_not_due_cards():
 
 def test_select_session_card_with_no_due_treated_as_due():
     pack = _pack("a")
-    cards = {pack.shortcut_id(pack.shortcuts[0]): Card()}  # default due=None? actually Card() sets due
+    cards = {
+        pack.shortcut_id(pack.shortcuts[0]): Card()
+    }  # default due=None? actually Card() sets due
     # Card() may set due to now; either way fresh card with no schedule = due
     queue = select_session(pack, cards)
     assert len(queue) == 1

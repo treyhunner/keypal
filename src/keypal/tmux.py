@@ -145,7 +145,9 @@ def parse_tmux_bindings(output: str | None = None) -> dict[str, list[str]]:
     return bindings
 
 
-def apply_tmux_overrides(pack: Pack, *, bindings: dict[str, list[str]] | None = None) -> Pack:
+def apply_tmux_overrides(
+    pack: Pack, *, bindings: dict[str, list[str]] | None = None
+) -> Pack:
     """Substitute keys/prefix from the user's live tmux config for matching commands."""
     if pack.id != "tmux":
         return pack

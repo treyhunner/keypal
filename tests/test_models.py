@@ -113,7 +113,11 @@ def test_shortcut_id_uses_shared_id_when_set():
         name="n",
         description="d",
         shortcuts=(
-            Shortcut(action="Move to start", keys=("ctrl+a",), shared_id="readline:Move to start"),
+            Shortcut(
+                action="Move to start",
+                keys=("ctrl+a",),
+                shared_id="readline:Move to start",
+            ),
         ),
     )
     assert pack.shortcut_id(pack.shortcuts[0]) == "readline:Move to start"

@@ -364,7 +364,7 @@ class HomeScreen(Screen):
         prefix = "pack-"
         if not item.id.startswith(prefix):
             return
-        pack_id = item.id[len(prefix):]
+        pack_id = item.id[len(prefix) :]
         pack = next((p for p in self._packs if p.id == pack_id), None)
         if pack is not None:
             self.app.push_screen(BrowseScreen(pack))
@@ -423,15 +423,17 @@ class HomeScreen(Screen):
         prefix = "pack-"
         if event.item.id is None or not event.item.id.startswith(prefix):
             return
-        pack_id = event.item.id[len(prefix):]
+        pack_id = event.item.id[len(prefix) :]
         pack = next((p for p in self._packs if p.id == pack_id), None)
         if pack is None:
             return
         if self._needs_prefix_swap(pack):
+
             def handle_response(confirmed: bool | None) -> None:
                 if confirmed:
                     self.app.tmux_swap.activate()
                     self.app.push_screen(QuizScreen(pack, self.app.storage))
+
             self.app.push_screen(ConfirmSwapModal(), handle_response)
         else:
             self.app.push_screen(QuizScreen(pack, self.app.storage))
@@ -470,7 +472,9 @@ class BrowseScreen(Screen):
                 action = shortcut.action
                 keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
                 shared = ""
-                if shortcut.shared_id and not shortcut.shared_id.startswith(f"{self._pack.id}:"):
+                if shortcut.shared_id and not shortcut.shared_id.startswith(
+                    f"{self._pack.id}:"
+                ):
                     ns = shortcut.shared_id.split(":", 1)[0]
                     shared = f"  [$text-muted i](common with {ns})[/]"
                 yield Static(
@@ -535,7 +539,11 @@ class StatsScreen(Screen):
 
         pack_lines = []
         for pack in self._packs:
-            active_ids = [pack.shortcut_id(s) for s in pack.shortcuts if pack.shortcut_id(s) not in disabled]
+            active_ids = [
+                pack.shortcut_id(s)
+                for s in pack.shortcuts
+                if pack.shortcut_id(s) not in disabled
+            ]
             tracked = sum(1 for sid in active_ids if sid in cards)
             due = sum(
                 1
@@ -610,7 +618,9 @@ class QuizScreen(Screen):
     def _evaluate_chord(self, buffer: list[str], shortcut: Shortcut) -> bool:
         if len(buffer) != self._expected_chord_length():
             return False
-        return all(self._match_position(i, key, shortcut) for i, key in enumerate(buffer))
+        return all(
+            self._match_position(i, key, shortcut) for i, key in enumerate(buffer)
+        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -703,7 +713,9 @@ class QuizScreen(Screen):
                 your_combo.set_combo(list(self._chord_buffer))
                 hint.update("Now press the next key…")
             else:
-                hint.update("Press the shortcut · Space if you don't know · F4 to skip forever")
+                hint.update(
+                    "Press the shortcut · Space if you don't know · F4 to skip forever"
+                )
             return
 
         expected_seq = self._expected_seq(shortcut)
@@ -806,7 +818,9 @@ class QuizScreen(Screen):
         # Empty buffer + Y = "got it right" override
         if not self._chord_buffer and event.key == "y":
             event.stop()
-            self._remember_alias_seq(self._last_pressed_seq, self._expected_seq(shortcut))
+            self._remember_alias_seq(
+                self._last_pressed_seq, self._expected_seq(shortcut)
+            )
             self._finalize(correct=True)
             return
 
@@ -837,7 +851,9 @@ class QuizScreen(Screen):
         self._chord_buffer = []
         self._finalize(correct=False)  # was wrong on first attempt; just practiced
 
-    def _remember_alias_seq(self, pressed_seq: list[str], expected_seq: list[str]) -> None:
+    def _remember_alias_seq(
+        self, pressed_seq: list[str], expected_seq: list[str]
+    ) -> None:
         if not pressed_seq or len(pressed_seq) != len(expected_seq):
             return  # nothing to alias, or length mismatch
         changed = False
@@ -857,7 +873,9 @@ class QuizScreen(Screen):
     def _finalize(self, *, correct: bool) -> None:
         shortcut = self._current()
         if shortcut is not None:
-            self._record_answer(shortcut, correct=correct, response_time_ms=self._pending_elapsed_ms)
+            self._record_answer(
+                shortcut, correct=correct, response_time_ms=self._pending_elapsed_ms
+            )
         self._advance()
 
     def _advance(self) -> None:
@@ -869,10 +887,14 @@ class QuizScreen(Screen):
             return 0
         return (time.monotonic_ns() - self._start_ns) // 1_000_000
 
-    def _record_answer(self, shortcut: Shortcut, *, correct: bool, response_time_ms: int) -> None:
+    def _record_answer(
+        self, shortcut: Shortcut, *, correct: bool, response_time_ms: int
+    ) -> None:
         shortcut_id = self._pack.shortcut_id(shortcut)
         card = self._cards.get(shortcut_id, Card())
-        updated, log = review(card, correct=correct, response_time_ms=int(response_time_ms))
+        updated, log = review(
+            card, correct=correct, response_time_ms=int(response_time_ms)
+        )
         self._cards[shortcut_id] = updated
         self._storage.save_cards(self._cards)
         self._storage.append_review(shortcut_id, log)

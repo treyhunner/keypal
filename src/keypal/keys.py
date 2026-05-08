@@ -93,7 +93,9 @@ def normalize(combo: str) -> str:
     modifiers = sorted(p for p in parts if p in MODIFIERS)
     keys = [SYMBOL_NAMES.get(p, p) for p in parts if p not in MODIFIERS]
     if len(keys) != 1:
-        raise ValueError(f"Expected exactly one non-modifier key in {combo!r}, got {keys}")
+        raise ValueError(
+            f"Expected exactly one non-modifier key in {combo!r}, got {keys}"
+        )
     return "+".join([*modifiers, keys[0]])
 
 
