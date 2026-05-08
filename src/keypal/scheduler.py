@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -10,6 +10,13 @@ FAST_MS = 2_000
 SLOW_MS = 8_000
 DEFAULT_NEW_PER_SESSION = 5
 
+SANITY_MAX_TIMING_MS = 180_000
+PERSONAL_MIN_REVIEWS = 30
+PERSONAL_FULL_REVIEWS = 100
+PERSONAL_LOOKBACK_DAYS = 60
+PERSONAL_PERCENTILE_FAST = 30
+PERSONAL_PERCENTILE_SLOW = 90
+
 
 @dataclass(frozen=True)
 class Thresholds:
@@ -18,6 +25,28 @@ class Thresholds:
 
 
 DEFAULT_THRESHOLDS = Thresholds()
+
+
+def _nearest_rank(sorted_values: list[int], percentile: int) -> int:
+    n = len(sorted_values)
+    idx = max(0, min(n - 1, round(percentile / 100 * (n - 1))))
+    return sorted_values[idx]
+
+
+def _sane_timings(values: Iterable[int | None]) -> list[int]:
+    return sorted(v for v in values if v is not None and 0 <= v <= SANITY_MAX_TIMING_MS)
+
+
+def compute_personal_thresholds(
+    response_times: Iterable[int | None],
+) -> Thresholds | None:
+    rts = _sane_timings(response_times)
+    if len(rts) < PERSONAL_MIN_REVIEWS:
+        return None
+    return Thresholds(
+        fast_ms=_nearest_rank(rts, PERSONAL_PERCENTILE_FAST),
+        slow_ms=_nearest_rank(rts, PERSONAL_PERCENTILE_SLOW),
+    )
 
 
 def classify(

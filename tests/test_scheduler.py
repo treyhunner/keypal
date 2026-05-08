@@ -5,9 +5,11 @@ from fsrs import Card, Rating
 from keypal.models import Pack, Shortcut
 from keypal.scheduler import (
     FAST_MS,
+    PERSONAL_MIN_REVIEWS,
     SLOW_MS,
     Thresholds,
     classify,
+    compute_personal_thresholds,
     review,
     select_session,
 )
@@ -142,3 +144,33 @@ def test_select_session_introduces_shared_unseen_shortcuts():
     seen = {f"python_repl::{pack.shortcut_id(pack.shortcuts[0])}"}
     queue = select_session(pack, cards, now=now, seen=seen)
     assert queue == []
+
+
+def test_compute_personal_thresholds_returns_none_below_minimum():
+    times = list(range(100, 100 * PERSONAL_MIN_REVIEWS, 100))
+    assert len(times) == PERSONAL_MIN_REVIEWS - 1
+    assert compute_personal_thresholds(times) is None
+
+
+def test_compute_personal_thresholds_uses_percentiles():
+    times = list(range(1000, 1000 + 100 * 100, 100))
+    assert len(times) == 100
+    result = compute_personal_thresholds(times)
+    assert result is not None
+    assert result.fast_ms < result.slow_ms
+    assert result.fast_ms == sorted(times)[round(30 / 100 * 99)]
+    assert result.slow_ms == sorted(times)[round(90 / 100 * 99)]
+
+
+def test_compute_personal_thresholds_filters_insane_values():
+    sane = [2000] * PERSONAL_MIN_REVIEWS
+    insane = [200_000, -5, None]
+    result = compute_personal_thresholds(sane + insane)
+    assert result is not None
+    assert result.fast_ms == 2000
+    assert result.slow_ms == 2000
+
+
+def test_compute_personal_thresholds_filters_none_values():
+    times = [None] * 50
+    assert compute_personal_thresholds(times) is None
