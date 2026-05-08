@@ -17,8 +17,8 @@ src/keypal/
 ├── app.py              # Textual app + screens (Home, Quiz, Browse, Stats, Diagnostic, ConfirmSwapModal)
 ├── models.py           # Shortcut, Pack dataclasses; parse_pack/load_pack/builtin_packs
 ├── keys.py             # normalize/matches/prettify; terminal byte-equivalents; symbol aliases
-├── scheduler.py        # classify(correct, response_time_ms); select_session
-├── storage.py          # cards.json, review_log.jsonl, aliases.json, disabled.json
+├── scheduler.py        # classify; select_session; select_multi_session; threshold blending
+├── storage.py          # cards.json, review_log.jsonl, aliases.json, disabled.json, selected_packs.json
 ├── tmux.py             # TmuxPrefixSwap + apply_tmux_overrides (dynamic provider)
 ├── obsidian.py         # apply_obsidian_overrides (dynamic provider)
 └── packs/              # built-in TOMLs (readline, tmux, obsidian, python_repl)
@@ -70,17 +70,21 @@ Default base dir: `platformdirs.user_data_dir("keypal")` (e.g. `~/.local/share/k
 - `aliases.json`: `{expected_combo: [pressed_combos]}` saved when user presses Y on a wrong answer.
 - `disabled.json`: array of shortcut IDs the user dismissed via F4.
 - `seen.json`: array of `"{pack_id}::{shortcut_id}"` strings; tracks which shared shortcuts the user has been introduced to in each pack (so a shared shortcut shows once per pack even if its FSRS card isn't due).
+- `selected_packs.json`: array of pack IDs the user has checked for multi-pack practice. `None` (missing file) means all packs selected.
 
 ## TUI key conventions
 
 - **Esc**: back / cancel
-- **Enter**: confirm / continue / advance from CORRECT_DONE / return from session-complete
+- **Enter**: confirm / continue / advance from CORRECT_DONE / return from session-complete / practice shortcut from browse
 - **Space**: "don't know" in quiz (treated as wrong)
 - **Y**: in WRONG_PRACTICE, claim "I actually had it right" (saves alias, advances as correct)
 - **F4**: skip current shortcut forever (adds to disabled.json)
+- **P**: from home, start multi-pack practice with checked packs
+- **X**: from home, toggle pack checkbox for multi-pack selection
 - **B**: from home, browse the highlighted pack
 - **D**: from home, diagnostic screen for testing key reception
 - **S**: from home, stats screen
+- **Arrow keys**: on home, cycle between Practice button and pack list
 
 ## When making changes
 
