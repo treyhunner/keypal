@@ -773,7 +773,11 @@ class QuizScreen(Screen):
             self._cancel_auto_advance()
             self._finalize(correct=True)
         else:
-            self._render_state()
+            # Only update the dots; don't re-render the whole state (would destroy
+            # and remount the demo widget every tick, killing its animation cycle).
+            for i in (1, 2, 3):
+                cell = self.query_one(f"#dot-{i}", Static)
+                cell.update(self.DOT_CHAR if self._auto_advance_step >= i else "")
 
     def _render_state(self) -> None:
         shortcut = self._current()
