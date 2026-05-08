@@ -1,13 +1,6 @@
 import pytest
 
-from keypal.keys import (
-    extract_parts,
-    matches,
-    normalize,
-    prettify_combo,
-    prettify_key,
-    split_combo,
-)
+from keypal.keys import matches, normalize, prettify_combo, prettify_key
 
 
 def test_normalize_lowercases():
@@ -173,45 +166,3 @@ def test_prettify_combo():
     assert prettify_combo("ctrl+a") == ["Ctrl", "A"]
     assert prettify_combo("Shift+Ctrl+Left") == ["Ctrl", "Shift", "←"]
     assert prettify_combo("alt+backspace") == ["Alt", "Backspace"]
-
-
-# --- split_combo / extract_parts ---
-
-
-def test_split_combo_simple():
-    assert split_combo("ctrl+a") == (["ctrl"], "a")
-
-
-def test_split_combo_multiple_modifiers():
-    assert split_combo("ctrl+alt+shift+t") == (["alt", "ctrl", "shift"], "t")
-
-
-def test_split_combo_no_modifiers():
-    assert split_combo("t") == ([], "t")
-
-
-def test_split_combo_plus_key():
-    assert split_combo("+") == ([], "+")
-    assert split_combo("ctrl++") == (["ctrl"], "+")
-
-
-def test_split_combo_symbol_name():
-    assert split_combo("ctrl+minus") == (["ctrl"], "-")
-
-
-def test_extract_parts_with_modifiers():
-    mods, base = extract_parts("ctrl+x")
-    assert mods == {"ctrl"}
-    assert base == "x"
-
-
-def test_extract_parts_bare_key():
-    mods, base = extract_parts("t")
-    assert mods == set()
-    assert base == "t"
-
-
-def test_extract_parts_multiple_modifiers():
-    mods, base = extract_parts("alt+shift+f")
-    assert mods == {"alt", "shift"}
-    assert base == "f"

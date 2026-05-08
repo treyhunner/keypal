@@ -24,14 +24,7 @@ from textual.widgets import (
     Static,
 )
 
-from keypal.keys import (
-    extract_parts,
-    matches,
-    normalize,
-    prettify_combo,
-    prettify_key,
-    split_combo,
-)
+from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import (
     PERSONAL_LOOKBACK_DAYS,
@@ -389,7 +382,6 @@ class QuizState(Enum):
     ASKING = "asking"
     CORRECT_DONE = "correct_done"
     WRONG_PRACTICE = "wrong_practice"
-    SEQUENTIAL = "sequential"
 
 
 class KeyChip(Static):
@@ -416,18 +408,6 @@ class KeyCombo(Horizontal):
                 if chip_class:
                     chip.add_class(chip_class)
                 widgets.append(chip)
-        self.mount(*widgets)
-
-    def set_combo_classes(self, parts: list[str], classes: list[str]) -> None:
-        self.remove_children()
-        widgets = []
-        for i, (part, cls) in enumerate(zip(parts, classes)):
-            if i > 0:
-                widgets.append(Static("+", classes="key-plus"))
-            chip = KeyChip(part)
-            if cls:
-                chip.add_class(cls)
-            widgets.append(chip)
         self.mount(*widgets)
 
     def clear(self) -> None:
@@ -922,10 +902,6 @@ class QuizScreen(Screen):
         self._pending_elapsed_ms: int = 0
         self._auto_advance_step = 0
         self._auto_advance_timer = None
-        self._seq_remaining_mods: set[str] = set()
-        self._seq_remaining_base: str | None = None
-        self._seq_all_mods: list[str] = []
-        self._seq_base: str = ""
 
     def _compute_thresholds(self) -> Thresholds:
         cutoff = datetime.now(timezone.utc) - timedelta(days=PERSONAL_LOOKBACK_DAYS)
@@ -1076,21 +1052,8 @@ class QuizScreen(Screen):
                 hint.update("Now press the next key...")
             else:
                 hint.update(
-                    "Press the shortcut · ? to spell out"
-                    " · Space if you don't know · F4 to skip forever"
+                    "Press the shortcut · Space if you don't know · F4 to skip forever"
                 )
-            return
-
-        if self._state is QuizState.SEQUENTIAL:
-            parts: list[str] = []
-            classes: list[str] = []
-            for mod in self._seq_all_mods:
-                parts.append(prettify_key(mod))
-                classes.append("correct" if mod not in self._seq_remaining_mods else "")
-            parts.append(prettify_key(self._seq_base))
-            classes.append("correct" if self._seq_remaining_base is None else "")
-            your_combo.set_combo_classes(parts, classes)
-            hint.update(self._sequential_hint())
             return
 
         expected_seq = self._expected_seq(shortcut, pack)
@@ -1124,10 +1087,7 @@ class QuizScreen(Screen):
         else:
             if self._last_pressed_seq:
                 your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
-            hint.update(
-                "Y if you had it · ? to spell out"
-                " · Enter to skip once · F4 to skip forever"
-            )
+            hint.update("Y if you had it · Enter to skip once · F4 to skip forever")
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
@@ -1149,47 +1109,14 @@ class QuizScreen(Screen):
             self._handle_asking(event)
         elif self._state is QuizState.CORRECT_DONE:
             self._handle_correct_done(event)
-        elif self._state is QuizState.SEQUENTIAL:
-            self._handle_sequential(event)
         else:
             self._handle_wrong_practice(event)
-
-    def _sequential_hint(self) -> str:
-        mods = self._seq_remaining_mods
-        base = self._seq_remaining_base
-        if not mods and base is None:
-            return ""
-        parts = []
-        if mods:
-            mod_names = "+".join(prettify_key(m) for m in sorted(mods))
-            if base is not None:
-                parts.append(f"try {mod_names}+{prettify_key(base)} together")
-                parts.append("or press modifiers with any key")
-            else:
-                parts.append(f"any {mod_names}+key combo")
-        elif base is not None:
-            parts.append(f"press {prettify_key(base)}")
-        return f"{' · '.join(parts)} · Space to give up"
-
-    def _enter_sequential(self, shortcut: Shortcut, pack: Pack) -> None:
-        combo = shortcut.keys[0]
-        mods, base = split_combo(combo)
-        self._seq_all_mods = mods
-        self._seq_base = base
-        self._seq_remaining_mods = set(mods)
-        self._seq_remaining_base = base
-        self._state = QuizState.SEQUENTIAL
-        self._render_state()
 
     def _handle_asking(self, event: events.Key) -> None:
         event.stop()
         current = self._current()
         assert current is not None
         shortcut, pack = current
-
-        if event.key == "question_mark" and not self._chord_buffer:
-            self._enter_sequential(shortcut, pack)
-            return
 
         if event.key == "space" and not self._chord_buffer:
             self._pending_elapsed_ms = self._elapsed_ms()
@@ -1229,35 +1156,10 @@ class QuizScreen(Screen):
             self._cancel_auto_advance()
             self._finalize(correct=True)
 
-    def _handle_sequential(self, event: events.Key) -> None:
-        event.stop()
-        if event.key == "space":
-            self._pending_elapsed_ms = self._elapsed_ms()
-            self._last_pressed_seq = []
-            self._state = QuizState.WRONG_PRACTICE
-            self._render_state()
-            return
-
-        pressed_mods, pressed_base = extract_parts(event.key)
-        self._seq_remaining_mods -= pressed_mods
-        if pressed_base == self._seq_remaining_base:
-            self._seq_remaining_base = None
-
-        if not self._seq_remaining_mods and self._seq_remaining_base is None:
-            self._pending_elapsed_ms = self._elapsed_ms()
-            self._state = QuizState.CORRECT_DONE
-            self._start_auto_advance()
-        self._render_state()
-
     def _handle_wrong_practice(self, event: events.Key) -> None:
         current = self._current()
         assert current is not None
         shortcut, pack = current
-
-        if not self._chord_buffer and event.key == "question_mark":
-            event.stop()
-            self._enter_sequential(shortcut, pack)
-            return
 
         if not self._chord_buffer and event.key == "y":
             event.stop()
