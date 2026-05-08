@@ -556,13 +556,23 @@ class HomeScreen(Screen):
         return cb
 
     def on_key(self, event: events.Key) -> None:
-        if event.key in ("up", "down") and isinstance(self.focused, Button):
-            self.query_one(ListView).focus()
-            event.stop()
-            return
-        if event.key == "up" and isinstance(self.focused, ListView):
+        if isinstance(self.focused, Button):
             lv = self.query_one(ListView)
-            if lv.index == 0:
+            if event.key == "down":
+                lv.index = 0
+                lv.focus()
+                event.stop()
+            elif event.key == "up":
+                lv.index = len(lv) - 1
+                lv.focus()
+                event.stop()
+            return
+        if isinstance(self.focused, ListView):
+            lv = self.query_one(ListView)
+            if event.key == "up" and lv.index == 0:
+                self.query_one("#practice-btn", Button).focus()
+                event.stop()
+            elif event.key == "down" and lv.index == len(lv) - 1:
                 self.query_one("#practice-btn", Button).focus()
                 event.stop()
 
