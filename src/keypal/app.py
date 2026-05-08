@@ -532,9 +532,7 @@ class HomeScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="home-content"):
-            btn = Button("Practice", id="practice-btn", variant="primary")
-            btn.can_focus = False
-            yield btn
+            yield Button("Practice", id="practice-btn", variant="primary")
             yield ListView(
                 *(
                     ListItem(
