@@ -555,6 +555,17 @@ class HomeScreen(Screen):
         cb.can_focus = False
         return cb
 
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("up", "down") and isinstance(self.focused, Button):
+            self.query_one(ListView).focus()
+            event.stop()
+            return
+        if event.key == "up" and isinstance(self.focused, ListView):
+            lv = self.query_one(ListView)
+            if lv.index == 0:
+                self.query_one("#practice-btn", Button).focus()
+                event.stop()
+
     def on_screen_resume(self) -> None:
         for pack in self._packs:
             label = self.query_one(f"#pack-{pack.id} .pack-summary", Static)
