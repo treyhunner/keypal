@@ -6,10 +6,13 @@ from enum import Enum
 import darkdetect
 from fsrs import Card, State
 from textual import events
+from textual._ansi_sequences import ANSI_SEQUENCES_KEYS, IGNORE_SEQUENCE
+from textual._xterm_parser import XTermParser
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.driver import Driver
 from textual.drivers.linux_driver import LinuxDriver
+from textual.keys import Keys
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
 
@@ -18,6 +21,32 @@ from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import review, select_session
 from keypal.storage import Storage
 from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
+
+
+# --- Monkey-patch for https://github.com/Textualize/textual/issues/6378 ---
+# Textual's XTermParser silently drops the Alt prefix for keys whose ANSI
+# sequence maps to a tuple in ANSI_SEQUENCES_KEYS (Enter, Space, Backspace,
+# Tab, all Ctrl+letter). Pressing Alt+Enter produces Key("enter") instead of
+# Key("alt+enter"). The "tuple branch" in `_sequence_to_key_events` ignores
+# the alt parameter; the single-character branch (a few lines below it) does
+# check it. Until upstream fixes it, replicate the alt-prefix handling here.
+_textual_original_sequence_to_key_events = XTermParser._sequence_to_key_events
+
+
+def _patched_sequence_to_key_events(self, sequence: str, alt: bool = False):
+    if alt:
+        keys = ANSI_SEQUENCES_KEYS.get(sequence)
+        if keys is not IGNORE_SEQUENCE and isinstance(keys, tuple):
+            for key in keys:
+                name = key.value
+                if name and name != Keys.Escape.value:
+                    name = f"alt+{name}"
+                yield events.Key(name, sequence if len(sequence) == 1 else None)
+            return
+    yield from _textual_original_sequence_to_key_events(self, sequence, alt)
+
+
+XTermParser._sequence_to_key_events = _patched_sequence_to_key_events
 
 
 CSS = """
