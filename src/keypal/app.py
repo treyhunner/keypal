@@ -1077,7 +1077,10 @@ class QuizScreen(Screen):
         else:
             if self._last_pressed_seq:
                 your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
-            hint.update("Y if you had it · Enter to skip once · F4 to skip forever")
+            hint.update(
+                "Y if you had it · ? to spell out"
+                " · Enter to skip once · F4 to skip forever"
+            )
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape":
@@ -1186,6 +1189,11 @@ class QuizScreen(Screen):
         current = self._current()
         assert current is not None
         shortcut, pack = current
+
+        if not self._chord_buffer and event.key == "question_mark":
+            event.stop()
+            self._enter_sequential(shortcut, pack)
+            return
 
         if not self._chord_buffer and event.key == "y":
             event.stop()
