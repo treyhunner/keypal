@@ -116,7 +116,7 @@ ListItem.--highlight {
 
 /* === Quiz === */
 
-#progress, #prompt, #verdict, #hint, #expected-label {
+#progress, #pack-label, #prompt, #verdict, #hint, #expected-label {
     width: 100%;
     text-align: center;
 }
@@ -125,6 +125,11 @@ ListItem.--highlight {
     color: $text-muted;
     height: 1;
     margin-bottom: 1;
+}
+
+#pack-label {
+    color: $text-muted;
+    height: 1;
 }
 
 #prompt {
@@ -786,6 +791,7 @@ class QuizScreen(Screen):
         yield Header()
         with Vertical(id="quiz-content"):
             yield Static("", id="progress")
+            yield Static("", id="pack-label")
             yield Static("", id="prompt")
             yield KeyCombo(id="your-combo")
             yield Static("", id="verdict")
@@ -850,6 +856,7 @@ class QuizScreen(Screen):
     def _render_state(self) -> None:
         current = self._current()
         progress = self.query_one("#progress", Static)
+        pack_label = self.query_one("#pack-label", Static)
         prompt = self.query_one("#prompt", Static)
         your_combo = self.query_one("#your-combo", KeyCombo)
         verdict = self.query_one("#verdict", Static)
@@ -872,12 +879,17 @@ class QuizScreen(Screen):
 
         if current is None:
             progress.update("")
+            pack_label.update("")
             prompt.update("Session complete")
             hint.update("Press Enter to return home")
             return
 
         shortcut, pack = current
         progress.update(f"{self._index + 1} / {len(self._session)}")
+        if len(self._packs) > 1:
+            pack_label.update(pack.name)
+        else:
+            pack_label.update("")
         prompt_text = shortcut.action
         if shortcut.shared_id and not shortcut.shared_id.startswith(f"{pack.id}:"):
             ns = shortcut.shared_id.split(":", 1)[0]
