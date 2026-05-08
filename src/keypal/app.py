@@ -36,6 +36,13 @@ from keypal.scheduler import (
 from keypal.storage import Storage
 from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
 
+PACK_COLORS = {
+    "readline": "green",
+    "python_repl": "blue",
+    "tmux": "yellow",
+    "obsidian": "magenta",
+}
+
 
 # --- Monkey-patch for https://github.com/Textualize/textual/issues/6378 ---
 # Textual's XTermParser silently drops the Alt prefix for keys whose ANSI
@@ -147,8 +154,9 @@ ListItem.--highlight {
 }
 
 #pack-label {
-    color: $text-muted;
     height: 1;
+    text-style: bold;
+    margin-bottom: 1;
 }
 
 #prompt {
@@ -981,7 +989,8 @@ class QuizScreen(Screen):
         shortcut, pack = current
         progress.update(f"{self._index + 1} / {len(self._session)}")
         if len(self._packs) > 1:
-            pack_label.update(pack.name)
+            color = PACK_COLORS.get(pack.id, "white")
+            pack_label.update(f"[bold reverse {color}] {pack.name} [/]")
         else:
             pack_label.update("")
         prompt_text = shortcut.action
