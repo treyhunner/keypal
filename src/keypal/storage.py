@@ -14,6 +14,7 @@ class Settings:
     fast_ms: int = 2_000
     slow_ms: int = 8_000
     auto_advance_secs: float = 4.0
+    auto_adjust_thresholds: bool = True
 
 
 def default_data_dir() -> Path:
@@ -137,7 +138,13 @@ class Storage:
             return Settings()
         raw = json.loads(self.settings_path.read_text())
         kwargs = {}
-        for key in ("new_per_session", "fast_ms", "slow_ms", "auto_advance_secs"):
+        for key in (
+            "new_per_session",
+            "fast_ms",
+            "slow_ms",
+            "auto_advance_secs",
+            "auto_adjust_thresholds",
+        ):
             if key in raw:
                 kwargs[key] = raw[key]
         return Settings(**kwargs)

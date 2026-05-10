@@ -28,10 +28,7 @@ from textual.widgets import (
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import (
-    PERSONAL_FULL_REVIEWS,
     PERSONAL_LOOKBACK_DAYS,
-    PERSONAL_MIN_REVIEWS,
-    SANITY_MAX_TIMING_MS,
     Thresholds,
     get_thresholds,
     review,
@@ -980,19 +977,22 @@ SETTING_FIELDS = [
         "How many new shortcuts to introduce each session",
     ),
     (
+        "auto_advance_secs",
+        "Auto-advance delay (seconds)",
+        "Seconds to wait before advancing after a correct answer",
+    ),
+]
+
+THRESHOLD_FIELDS = [
+    (
         "fast_ms",
         "Fast threshold (ms)",
-        "Baseline for rating correct answers as Easy",
+        "Correct answers faster than this are rated Easy",
     ),
     (
         "slow_ms",
         "Slow threshold (ms)",
-        "Baseline for rating correct answers as Hard",
-    ),
-    (
-        "auto_advance_secs",
-        "Auto-advance delay (seconds)",
-        "Seconds to wait before advancing after a correct answer",
+        "Correct answers slower than this are rated Hard",
     ),
 ]
 
@@ -1004,44 +1004,6 @@ class SettingsScreen(Screen):
         super().__init__()
         self._storage = storage
         self._settings = storage.load_settings()
-        self._effective, self._review_count = self._compute_effective()
-
-    def _compute_effective(self) -> tuple[Thresholds, int]:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=PERSONAL_LOOKBACK_DAYS)
-        defaults = Thresholds(
-            fast_ms=self._settings.fast_ms,
-            slow_ms=self._settings.slow_ms,
-        )
-        recent_signals = [
-            signals
-            for _sid, log, signals in self._storage.read_reviews()
-            if datetime.fromisoformat(log.to_dict()["review_datetime"]) >= cutoff
-        ]
-        response_times = [s.get("response_time_ms") for s in recent_signals]
-        sane_count = len(
-            [
-                rt
-                for rt in response_times
-                if rt is not None and 0 <= rt <= SANITY_MAX_TIMING_MS
-            ]
-        )
-        return get_thresholds(recent_signals, defaults=defaults), sane_count
-
-    def _threshold_note(self) -> str:
-        n = self._review_count
-        effective = self._effective
-        if n < PERSONAL_MIN_REVIEWS:
-            return f"Using your baselines ({n}/{PERSONAL_MIN_REVIEWS} reviews until auto-adjust)"
-        if n < PERSONAL_FULL_REVIEWS:
-            return (
-                f"Blending baselines with your data ({n} reviews).\n"
-                f"Effective: {effective.fast_ms:,} / {effective.slow_ms:,} ms"
-            )
-        return (
-            f"Fully auto-adjusted from your data ({n} reviews).\n"
-            f"Effective: {effective.fast_ms:,} / {effective.slow_ms:,} ms.\n"
-            f"Baselines above are not currently used."
-        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1055,21 +1017,41 @@ class SettingsScreen(Screen):
                         str(getattr(self._settings, field_name)),
                         id=f"setting-{field_name}",
                     )
-                    if field_name == "slow_ms":
-                        yield Static(
-                            self._threshold_note(),
-                            id="threshold-note",
-                            classes="setting-desc",
-                        )
+            with Vertical(classes="setting-row"):
+                yield Checkbox(
+                    "Auto-adjust thresholds based on my timing",
+                    value=self._settings.auto_adjust_thresholds,
+                    id="auto-adjust-check",
+                )
+                yield Static(
+                    "Adapts Easy/Hard cutoffs to your speed as you practice",
+                    classes="setting-desc",
+                )
+            for field_name, label, desc in THRESHOLD_FIELDS:
+                with Vertical(classes="setting-row"):
+                    yield Static(label, classes="setting-label")
+                    yield Static(desc, classes="setting-desc")
+                    yield Input(
+                        str(getattr(self._settings, field_name)),
+                        id=f"setting-{field_name}",
+                        disabled=self._settings.auto_adjust_thresholds,
+                    )
             with Horizontal(id="settings-buttons"):
                 yield Button("Save", id="save-btn", variant="primary")
                 yield Button("Reset to defaults", id="reset-btn")
             yield Static(f"Stored in {self._storage.settings_path}", id="settings-path")
         yield Footer()
 
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        if event.checkbox.id != "auto-adjust-check":
+            return
+        auto = event.value
+        for field_name, _, _ in THRESHOLD_FIELDS:
+            self.query_one(f"#setting-{field_name}", Input).disabled = auto
+
     def on_key(self, event: events.Key) -> None:
         if event.key in ("up", "down") and isinstance(self.focused, Input):
-            inputs = list(self.query(Input))
+            inputs = [inp for inp in self.query(Input) if not inp.disabled]
             try:
                 idx = inputs.index(self.focused)
             except ValueError:
@@ -1090,12 +1072,14 @@ class SettingsScreen(Screen):
     def _save(self) -> None:
         try:
             kwargs = {}
-            for field_name, _, _ in SETTING_FIELDS:
+            for field_name, _, _ in SETTING_FIELDS + THRESHOLD_FIELDS:
                 raw = self.query_one(f"#setting-{field_name}", Input).value
                 if field_name == "auto_advance_secs":
                     kwargs[field_name] = float(raw)
                 else:
                     kwargs[field_name] = int(raw)
+            auto_adjust = self.query_one("#auto-adjust-check", Checkbox).value
+            kwargs["auto_adjust_thresholds"] = auto_adjust
             settings = Settings(**kwargs)
         except ValueError, TypeError:
             self.app.notify(
@@ -1111,10 +1095,14 @@ class SettingsScreen(Screen):
         self._settings = Settings()
         self._storage.save_settings(self._settings)
         self.app.settings = self._settings
-        for field_name, _, _ in SETTING_FIELDS:
-            self.query_one(f"#setting-{field_name}", Input).value = str(
-                getattr(self._settings, field_name)
-            )
+        for field_name, _, _ in SETTING_FIELDS + THRESHOLD_FIELDS:
+            inp = self.query_one(f"#setting-{field_name}", Input)
+            inp.value = str(getattr(self._settings, field_name))
+            if field_name in ("fast_ms", "slow_ms"):
+                inp.disabled = self._settings.auto_adjust_thresholds
+        self.query_one(
+            "#auto-adjust-check", Checkbox
+        ).value = self._settings.auto_adjust_thresholds
         self.app.notify("Settings reset to defaults")
 
 
@@ -1165,17 +1153,19 @@ class QuizScreen(Screen):
         self._auto_advance_ticks = 4
 
     def _compute_thresholds(self) -> Thresholds:
-        defaults = Thresholds(
+        fixed = Thresholds(
             fast_ms=self._settings.fast_ms,
             slow_ms=self._settings.slow_ms,
         )
+        if not self._settings.auto_adjust_thresholds:
+            return fixed
         cutoff = datetime.now(timezone.utc) - timedelta(days=PERSONAL_LOOKBACK_DAYS)
         recent_signals = [
             signals
             for _sid, log, signals in self._storage.read_reviews()
             if datetime.fromisoformat(log.to_dict()["review_datetime"]) >= cutoff
         ]
-        return get_thresholds(recent_signals, defaults=defaults)
+        return get_thresholds(recent_signals, defaults=fixed)
 
     def _expected_seq(self, shortcut: Shortcut, pack: Pack) -> list[str]:
         if pack.prefix:
