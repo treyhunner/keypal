@@ -1019,7 +1019,7 @@ class SettingsScreen(Screen):
     def _threshold_note(self) -> str:
         effective = self._effective
         return (
-            f"These auto-adjust as you practice. "
+            f"These auto-adjust as you practice.\n"
             f"Currently using: {effective.fast_ms:,} / {effective.slow_ms:,} ms"
         )
 
