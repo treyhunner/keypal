@@ -50,7 +50,10 @@ A `shared_id` mechanism lets shortcuts in different packs share the same FSRS ca
 | ---------- | ------------------------------------------------------- |
 | Arrow keys | Navigate between packs                                  |
 | Enter      | Start practicing the highlighted pack                   |
+| **P**      | Practice checked packs (multi-pack session)             |
+| **X**      | Toggle pack checkbox for multi-pack selection           |
 | **B**      | Browse the highlighted pack (read-only cheat sheet)     |
+| **C**      | Settings (new cards per session, timing thresholds)     |
 | **S**      | Stats (cards by FSRS state, per-pack progress)          |
 | **D**      | Diagnostic screen for testing what your terminal sends  |
 | **Q**      | Quit                                                    |
@@ -80,6 +83,7 @@ Your data lives in `~/.local/share/keypal/` on Linux (platform-equivalent elsewh
 - `review_log.jsonl`: append-only log of every review
 - `aliases.json`: terminal-mistranslation aliases you've taught keypal
 - `disabled.json`: shortcuts you've dismissed with F4
+- `settings.json`: your settings (new cards per session, threshold overrides)
 
 Override the location with the `KEYPAL_DATA_DIR` environment variable.
 
