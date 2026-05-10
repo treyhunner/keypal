@@ -14,7 +14,7 @@ A terminal app (Textual TUI) for spaced-repetition learning of keyboard shortcut
 
 ```
 src/keypal/
-├── app.py              # Textual app + screens (Home, Quiz, Browse, Stats, Diagnostic, ConfirmSwapModal)
+├── app.py              # Textual app + screens (Home, Quiz, Browse, Stats, Settings, Diagnostic, ConfirmSwapModal)
 ├── models.py           # Shortcut, Pack dataclasses; parse_pack/load_pack/builtin_packs
 ├── keys.py             # normalize/matches/prettify; terminal byte-equivalents; symbol aliases
 ├── scheduler.py        # classify; select_session; select_multi_session; threshold blending
@@ -24,7 +24,7 @@ src/keypal/
 └── packs/              # built-in TOMLs (readline, tmux, obsidian, python_repl)
 ```
 
-`PLAN.md` and `TODO.md` are intentionally **untracked**. PLAN.md is the design doc; TODO.md tracks pending/resolved/rejected items. Don't commit them.
+Pending work is tracked in [GitHub Issues](https://github.com/treyhunner/keypal/issues).
 
 ## Firm design decisions
 
@@ -82,6 +82,7 @@ Default base dir: `platformdirs.user_data_dir("keypal")` (e.g. `~/.local/share/k
 - **P**: from home, start multi-pack practice with checked packs
 - **X**: from home, toggle pack checkbox for multi-pack selection
 - **B**: from home, browse the highlighted pack
+- **C**: from home, settings screen
 - **D**: from home, diagnostic screen for testing key reception
 - **S**: from home, stats screen
 - **Arrow keys**: on home, cycle between Practice button and pack list
@@ -90,5 +91,5 @@ Default base dir: `platformdirs.user_data_dir("keypal")` (e.g. `~/.local/share/k
 
 1. Keep commits small.
 2. Run `just qa` (or at minimum `uv run pytest`) before claiming a change works.
-3. If touching `app.py`, run a smoke test via `App.run_test()` pilot harness (examples in conversation history). UI tests via `pytest-asyncio` are a TODO.
-4. If a change affects user data files, add a one-time migration only if other people have data. For the single-user development phase, just rename the file in place and skip the migration code.
+3. If touching `app.py`, run existing UI tests (`tests/test_app.py`) and add coverage for new behavior.
+4. If a change affects user data files, add a migration path (the package is published and others may have data).
