@@ -19,6 +19,7 @@ from textual.widgets import (
     Checkbox,
     Footer,
     Header,
+    Input,
     ListItem,
     ListView,
     Static,
@@ -33,7 +34,7 @@ from keypal.scheduler import (
     review,
     select_multi_session,
 )
-from keypal.storage import Storage
+from keypal.storage import Settings, Storage
 from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
 
 PACK_COLORS = {
@@ -345,6 +346,60 @@ TextBufferDemo {
 .hidden {
     display: none;
 }
+
+/* === Settings === */
+
+#settings-content {
+    width: 64;
+    max-width: 100%;
+    height: auto;
+}
+
+#settings-title {
+    width: 100%;
+    text-align: center;
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+.setting-row {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.setting-label {
+    width: 100%;
+    color: $text;
+}
+
+.setting-desc {
+    width: 100%;
+    color: $text-muted;
+}
+
+.setting-row Input {
+    width: 20;
+}
+
+#settings-path {
+    width: 100%;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+#settings-buttons {
+    width: 100%;
+    height: 3;
+    align-horizontal: center;
+    margin-top: 1;
+}
+
+#settings-buttons Button {
+    margin: 0 1;
+}
 """
 
 
@@ -531,6 +586,7 @@ class HomeScreen(Screen):
         ("x", "toggle_pack", "Toggle pack"),
         ("b", "browse", "Browse pack"),
         ("s", "stats", "Stats"),
+        ("c", "settings", "Settings"),
         ("d", "diagnostics", "Test keys"),
     ]
 
@@ -539,6 +595,9 @@ class HomeScreen(Screen):
 
     def action_stats(self) -> None:
         self.app.push_screen(StatsScreen(self._packs, self._storage))
+
+    def action_settings(self) -> None:
+        self.app.push_screen(SettingsScreen(self._storage))
 
     def action_browse(self) -> None:
         pack = self._highlighted_pack()
@@ -902,6 +961,91 @@ class StatsScreen(Screen):
             *pack_lines,
         ]
         return "\n".join(lines)
+
+
+SETTING_FIELDS = [
+    (
+        "new_per_session",
+        "New cards per session",
+        "How many new shortcuts to introduce each session",
+    ),
+    (
+        "fast_ms",
+        "Fast threshold (ms)",
+        "Correct answers faster than this are rated Easy",
+    ),
+    (
+        "slow_ms",
+        "Slow threshold (ms)",
+        "Correct answers slower than this are rated Hard",
+    ),
+    (
+        "auto_advance_secs",
+        "Auto-advance delay (seconds)",
+        "Seconds to wait before advancing after a correct answer",
+    ),
+]
+
+
+class SettingsScreen(Screen):
+    BINDINGS = [("escape", "app.pop_screen", "Back")]
+
+    def __init__(self, storage: Storage) -> None:
+        super().__init__()
+        self._storage = storage
+        self._settings = storage.load_settings()
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="settings-content"):
+            yield Static("Settings", id="settings-title")
+            for field_name, label, desc in SETTING_FIELDS:
+                with Vertical(classes="setting-row"):
+                    yield Static(label, classes="setting-label")
+                    yield Static(desc, classes="setting-desc")
+                    yield Input(
+                        str(getattr(self._settings, field_name)),
+                        id=f"setting-{field_name}",
+                    )
+            with Horizontal(id="settings-buttons"):
+                yield Button("Save", id="save-btn", variant="primary")
+                yield Button("Reset to defaults", id="reset-btn")
+            yield Static(f"Stored in {self._storage.settings_path}", id="settings-path")
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            self._save()
+        elif event.button.id == "reset-btn":
+            self._reset()
+
+    def _save(self) -> None:
+        try:
+            kwargs = {}
+            for field_name, _, _ in SETTING_FIELDS:
+                raw = self.query_one(f"#setting-{field_name}", Input).value
+                if field_name == "auto_advance_secs":
+                    kwargs[field_name] = float(raw)
+                else:
+                    kwargs[field_name] = int(raw)
+            settings = Settings(**kwargs)
+        except ValueError, TypeError:
+            self.app.notify(
+                "Invalid input -- all values must be numbers", severity="error"
+            )
+            return
+        self._settings = settings
+        self._storage.save_settings(settings)
+        self.app.notify("Settings saved")
+
+    def _reset(self) -> None:
+        self._settings = Settings()
+        self._storage.save_settings(self._settings)
+        for field_name, _, _ in SETTING_FIELDS:
+            self.query_one(f"#setting-{field_name}", Input).value = str(
+                getattr(self._settings, field_name)
+            )
+        self.app.notify("Settings reset to defaults")
 
 
 class QuizScreen(Screen):

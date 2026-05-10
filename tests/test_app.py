@@ -1,9 +1,16 @@
 import pytest
-from textual.widgets import Checkbox, Static
+from textual.widgets import Checkbox, Input, Static
 
-from keypal.app import BrowseScreen, HomeScreen, KeypalApp, QuizScreen, QuizState
+from keypal.app import (
+    BrowseScreen,
+    HomeScreen,
+    KeypalApp,
+    QuizScreen,
+    QuizState,
+    SettingsScreen,
+)
 from keypal.models import Pack, Shortcut
-from keypal.storage import Storage
+from keypal.storage import Settings, Storage
 
 
 def _shortcut(action, keys=("ctrl+a",), **kwargs):
@@ -462,3 +469,35 @@ async def test_f4_in_browse_disables_shortcut(tmp_path):
         await pilot.press("f4")
     storage = Storage(base_dir=tmp_path)
     assert "test:A" in storage.load_disabled()
+
+
+# --- Settings screen ---
+
+
+@pytest.mark.asyncio
+async def test_settings_opens_with_c(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("c")
+        assert isinstance(app.screen, SettingsScreen)
+
+
+@pytest.mark.asyncio
+async def test_settings_shows_current_values(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    storage.save_settings(Settings(new_per_session=3))
+    app = make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("c")
+        value = app.screen.query_one("#setting-new_per_session", Input).value
+        assert value == "3"
+
+
+@pytest.mark.asyncio
+async def test_settings_escape_returns_home(tmp_path):
+    app = make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("c")
+        assert isinstance(app.screen, SettingsScreen)
+        await pilot.press("escape")
+        assert isinstance(app.screen, HomeScreen)
