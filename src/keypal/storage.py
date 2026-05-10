@@ -1,11 +1,19 @@
 import json
 import os
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import platformdirs
 from fsrs import Card, ReviewLog
+
+
+@dataclass
+class Settings:
+    new_per_session: int = 5
+    fast_ms: int = 2_000
+    slow_ms: int = 8_000
+    auto_advance_secs: float = 4.0
 
 
 def default_data_dir() -> Path:
@@ -119,3 +127,21 @@ class Storage:
         self.selected_packs_path.write_text(
             json.dumps(sorted(pack_ids), indent=2) + "\n"
         )
+
+    @property
+    def settings_path(self) -> Path:
+        return self.base_dir / "settings.json"
+
+    def load_settings(self) -> Settings:
+        if not self.settings_path.exists():
+            return Settings()
+        raw = json.loads(self.settings_path.read_text())
+        kwargs = {}
+        for key in ("new_per_session", "fast_ms", "slow_ms", "auto_advance_secs"):
+            if key in raw:
+                kwargs[key] = raw[key]
+        return Settings(**kwargs)
+
+    def save_settings(self, settings: Settings) -> None:
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.settings_path.write_text(json.dumps(asdict(settings), indent=2) + "\n")

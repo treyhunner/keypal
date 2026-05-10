@@ -1,6 +1,6 @@
 from fsrs import Card, Rating, Scheduler
 
-from keypal.storage import Storage, default_data_dir
+from keypal.storage import Settings, Storage, default_data_dir
 
 
 def test_default_data_dir_uses_keypal_override(monkeypatch, tmp_path):
@@ -104,3 +104,27 @@ def test_selected_packs_roundtrip(tmp_path):
     pack_ids = {"readline", "tmux", "python_repl"}
     storage.save_selected_packs(pack_ids)
     assert storage.load_selected_packs() == pack_ids
+
+
+def test_settings_returns_defaults_when_missing(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    settings = storage.load_settings()
+    assert settings == Settings()
+
+
+def test_settings_roundtrip(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    settings = Settings(
+        new_per_session=3, fast_ms=1500, slow_ms=6000, auto_advance_secs=5.0
+    )
+    storage.save_settings(settings)
+    assert storage.load_settings() == settings
+
+
+def test_settings_ignores_unknown_keys(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    storage.settings_path.parent.mkdir(parents=True, exist_ok=True)
+    storage.settings_path.write_text('{"new_per_session": 3, "unknown_key": 42}\n')
+    settings = storage.load_settings()
+    assert settings.new_per_session == 3
+    assert settings.fast_ms == 2_000
