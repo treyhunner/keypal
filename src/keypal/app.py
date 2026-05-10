@@ -979,12 +979,12 @@ SETTING_FIELDS = [
     (
         "fast_ms",
         "Fast threshold (ms)",
-        "Correct answers faster than this are rated Easy",
+        "Baseline for rating correct answers as Easy",
     ),
     (
         "slow_ms",
         "Slow threshold (ms)",
-        "Correct answers slower than this are rated Hard",
+        "Baseline for rating correct answers as Hard",
     ),
     (
         "auto_advance_secs",
@@ -1001,6 +1001,27 @@ class SettingsScreen(Screen):
         super().__init__()
         self._storage = storage
         self._settings = storage.load_settings()
+        self._effective = self._compute_effective()
+
+    def _compute_effective(self) -> Thresholds:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=PERSONAL_LOOKBACK_DAYS)
+        defaults = Thresholds(
+            fast_ms=self._settings.fast_ms,
+            slow_ms=self._settings.slow_ms,
+        )
+        recent_signals = [
+            signals
+            for _sid, log, signals in self._storage.read_reviews()
+            if datetime.fromisoformat(log.to_dict()["review_datetime"]) >= cutoff
+        ]
+        return get_thresholds(recent_signals, defaults=defaults)
+
+    def _threshold_note(self) -> str:
+        effective = self._effective
+        return (
+            f"These auto-adjust as you practice. "
+            f"Currently using: {effective.fast_ms:,} / {effective.slow_ms:,} ms"
+        )
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1014,11 +1035,31 @@ class SettingsScreen(Screen):
                         str(getattr(self._settings, field_name)),
                         id=f"setting-{field_name}",
                     )
+                    if field_name == "slow_ms":
+                        yield Static(
+                            self._threshold_note(),
+                            id="threshold-note",
+                            classes="setting-desc",
+                        )
             with Horizontal(id="settings-buttons"):
                 yield Button("Save", id="save-btn", variant="primary")
                 yield Button("Reset to defaults", id="reset-btn")
             yield Static(f"Stored in {self._storage.settings_path}", id="settings-path")
         yield Footer()
+
+    def on_key(self, event: events.Key) -> None:
+        if event.key in ("up", "down") and isinstance(self.focused, Input):
+            inputs = list(self.query(Input))
+            try:
+                idx = inputs.index(self.focused)
+            except ValueError:
+                return
+            if event.key == "up" and idx > 0:
+                inputs[idx - 1].focus()
+                event.stop()
+            elif event.key == "down" and idx < len(inputs) - 1:
+                inputs[idx + 1].focus()
+                event.stop()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
