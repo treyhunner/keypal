@@ -1049,18 +1049,46 @@ class SettingsScreen(Screen):
         for field_name, _, _ in THRESHOLD_FIELDS:
             self.query_one(f"#setting-{field_name}", Input).disabled = auto
 
+    def _focusable_widgets(self):
+        order = [
+            self.query_one("#setting-new_per_session", Input),
+            self.query_one("#setting-auto_advance_secs", Input),
+            self.query_one("#auto-adjust-check", Checkbox),
+            self.query_one("#setting-fast_ms", Input),
+            self.query_one("#setting-slow_ms", Input),
+            self.query_one("#save-btn", Button),
+            self.query_one("#reset-btn", Button),
+        ]
+        return [w for w in order if not (isinstance(w, Input) and w.disabled)]
+
     def on_key(self, event: events.Key) -> None:
-        if event.key in ("up", "down") and isinstance(self.focused, Input):
-            inputs = [inp for inp in self.query(Input) if not inp.disabled]
-            try:
-                idx = inputs.index(self.focused)
-            except ValueError:
+        focused = self.focused
+        if focused is None:
+            return
+        if event.key in ("up", "down"):
+            widgets = self._focusable_widgets()
+            if focused not in widgets:
                 return
+            idx = widgets.index(focused)
             if event.key == "up" and idx > 0:
-                inputs[idx - 1].focus()
+                widgets[idx - 1].focus()
                 event.stop()
-            elif event.key == "down" and idx < len(inputs) - 1:
-                inputs[idx + 1].focus()
+            elif event.key == "down" and idx < len(widgets) - 1:
+                widgets[idx + 1].focus()
+                event.stop()
+        elif event.key in ("left", "right") and isinstance(focused, Button):
+            buttons = [
+                self.query_one("#save-btn", Button),
+                self.query_one("#reset-btn", Button),
+            ]
+            if focused not in buttons:
+                return
+            idx = buttons.index(focused)
+            if event.key == "left" and idx > 0:
+                buttons[idx - 1].focus()
+                event.stop()
+            elif event.key == "right" and idx < len(buttons) - 1:
+                buttons[idx + 1].focus()
                 event.stop()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
