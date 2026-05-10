@@ -697,9 +697,7 @@ class HomeScreen(Screen):
         cards = self._storage.load_cards()
         disabled = self._storage.load_disabled()
         seen = self._storage.load_seen()
-        session = select_multi_session(
-            packs, cards, disabled=disabled, seen=seen
-        )
+        session = select_multi_session(packs, cards, disabled=disabled, seen=seen)
         if not session:
             self.app.notify("All caught up -- nothing to practice right now")
             return
@@ -732,12 +730,16 @@ class HomeScreen(Screen):
 
 
 class BrowseScreen(Screen):
-    BINDINGS = [("escape", "app.pop_screen", "Back")]
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Back"),
+        ("f4", "toggle_disabled", "Toggle skip"),
+    ]
 
     def __init__(self, pack: Pack, storage: Storage) -> None:
         super().__init__()
         self._pack = pack
         self._storage = storage
+        self._disabled: set[str] = storage.load_disabled()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -760,7 +762,10 @@ class BrowseScreen(Screen):
                 ),
                 id="browse-list",
             )
-            yield Static("Enter to practice · Esc to go back", id="browse-hint")
+            yield Static(
+                "Enter to practice · F4 to toggle skip · Esc to go back",
+                id="browse-hint",
+            )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -769,13 +774,40 @@ class BrowseScreen(Screen):
     def _browse_label(self, shortcut: Shortcut) -> str:
         action = shortcut.action
         keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
+        sid = self._pack.shortcut_id(shortcut)
+        skipped = "  [$text-muted i](skipped)[/]" if sid in self._disabled else ""
         shared = ""
         if shortcut.shared_id and not shortcut.shared_id.startswith(
             f"{self._pack.id}:"
         ):
             ns = shortcut.shared_id.split(":", 1)[0]
             shared = f"  [$text-muted i](common with {ns})[/]"
-        return f"{action:<42}  [b $primary]{keys}[/]{shared}"
+        return f"{action:<42}  [b $primary]{keys}[/]{shared}{skipped}"
+
+    def _highlighted_shortcut(self) -> tuple[int, Shortcut] | None:
+        lv = self.query_one("#browse-list", ListView)
+        item = lv.highlighted_child
+        if item is None or item.id is None:
+            return None
+        prefix = "shortcut-"
+        if not item.id.startswith(prefix):
+            return None
+        idx = int(item.id[len(prefix) :])
+        return idx, self._pack.shortcuts[idx]
+
+    def action_toggle_disabled(self) -> None:
+        result = self._highlighted_shortcut()
+        if result is None:
+            return
+        idx, shortcut = result
+        sid = self._pack.shortcut_id(shortcut)
+        if sid in self._disabled:
+            self._disabled.discard(sid)
+        else:
+            self._disabled.add(sid)
+        self._storage.save_disabled(self._disabled)
+        item = self.query_one(f"#shortcut-{idx}", ListItem)
+        item.query_one(Static).update(self._browse_label(shortcut))
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         prefix = "shortcut-"

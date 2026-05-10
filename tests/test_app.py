@@ -407,3 +407,58 @@ async def test_practice_with_no_due_cards_stays_on_home(tmp_path):
         assert isinstance(app.screen, HomeScreen)
         await pilot.press("p")
         assert isinstance(app.screen, HomeScreen)
+
+
+# --- Re-enable dismissed shortcuts ---
+
+
+@pytest.mark.asyncio
+async def test_browse_shows_skipped_label(tmp_path):
+    shortcuts = [_shortcut("A", keys=("ctrl+a",)), _shortcut("B", keys=("ctrl+b",))]
+    storage = Storage(base_dir=tmp_path)
+    storage.save_disabled({"test:A"})
+    app = make_app(tmp_path, shortcuts=shortcuts)
+    async with app.run_test() as pilot:
+        lv = app.screen.query_one("ListView")
+        lv.index = 0
+        lv.focus()
+        await pilot.pause()
+        await pilot.press("b")
+        assert isinstance(app.screen, BrowseScreen)
+        labels = [w.render().plain for w in app.screen.query("#browse-list Static")]
+        a_label = next(text for text in labels if "A" in text)
+        b_label = next(text for text in labels if "B" in text)
+        assert "skipped" in a_label.lower()
+        assert "skipped" not in b_label.lower()
+
+
+@pytest.mark.asyncio
+async def test_f4_in_browse_re_enables_shortcut(tmp_path):
+    shortcuts = [_shortcut("A", keys=("ctrl+a",)), _shortcut("B", keys=("ctrl+b",))]
+    storage = Storage(base_dir=tmp_path)
+    storage.save_disabled({"test:A"})
+    app = make_app(tmp_path, shortcuts=shortcuts)
+    async with app.run_test() as pilot:
+        lv = app.screen.query_one("ListView")
+        lv.index = 0
+        lv.focus()
+        await pilot.pause()
+        await pilot.press("b")
+        await pilot.press("f4")
+    storage2 = Storage(base_dir=tmp_path)
+    assert "test:A" not in storage2.load_disabled()
+
+
+@pytest.mark.asyncio
+async def test_f4_in_browse_disables_shortcut(tmp_path):
+    shortcuts = [_shortcut("A", keys=("ctrl+a",)), _shortcut("B", keys=("ctrl+b",))]
+    app = make_app(tmp_path, shortcuts=shortcuts)
+    async with app.run_test() as pilot:
+        lv = app.screen.query_one("ListView")
+        lv.index = 0
+        lv.focus()
+        await pilot.pause()
+        await pilot.press("b")
+        await pilot.press("f4")
+    storage = Storage(base_dir=tmp_path)
+    assert "test:A" in storage.load_disabled()
