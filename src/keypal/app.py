@@ -694,6 +694,15 @@ class HomeScreen(Screen):
             self._start_quiz((pack,))
 
     def _start_quiz(self, packs: tuple[Pack, ...]) -> None:
+        cards = self._storage.load_cards()
+        disabled = self._storage.load_disabled()
+        seen = self._storage.load_seen()
+        session = select_multi_session(
+            packs, cards, disabled=disabled, seen=seen
+        )
+        if not session:
+            self.app.notify("All caught up -- nothing to practice right now")
+            return
         if self._any_needs_prefix_swap(packs):
 
             def handle_response(confirmed: bool | None) -> None:

@@ -390,3 +390,20 @@ async def test_wrong_practice_correct_retry_advances(tmp_path):
         await pilot.press("ctrl+a")
         prompt = app.screen.query_one("#prompt", Static).render().plain
         assert "Move to end" in prompt
+
+
+# --- Empty session guard ---
+
+
+@pytest.mark.asyncio
+async def test_practice_with_no_due_cards_stays_on_home(tmp_path):
+    shortcuts = [_shortcut("A", keys=("ctrl+a",))]
+    app = make_app(tmp_path, shortcuts=shortcuts)
+    async with app.run_test(notifications=True) as pilot:
+        await pilot.press("p")
+        await pilot.press("ctrl+a")
+        await pilot.press("enter")
+        await pilot.press("enter")
+        assert isinstance(app.screen, HomeScreen)
+        await pilot.press("p")
+        assert isinstance(app.screen, HomeScreen)
