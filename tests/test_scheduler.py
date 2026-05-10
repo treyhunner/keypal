@@ -215,6 +215,12 @@ def test_get_thresholds_returns_defaults_below_minimum():
     assert get_thresholds(signals) == DEFAULT_THRESHOLDS
 
 
+def test_get_thresholds_uses_custom_defaults_below_minimum():
+    custom = Thresholds(fast_ms=1_500, slow_ms=6_000)
+    signals = [{"response_time_ms": 1500}] * (PERSONAL_MIN_REVIEWS - 1)
+    assert get_thresholds(signals, defaults=custom) == custom
+
+
 def test_get_thresholds_returns_personal_above_full():
     signals = [
         {"response_time_ms": i * 100} for i in range(1, PERSONAL_FULL_REVIEWS + 1)

@@ -753,10 +753,17 @@ class HomeScreen(Screen):
             self._start_quiz((pack,))
 
     def _start_quiz(self, packs: tuple[Pack, ...]) -> None:
+        settings = self.app.settings
         cards = self._storage.load_cards()
         disabled = self._storage.load_disabled()
         seen = self._storage.load_seen()
-        session = select_multi_session(packs, cards, disabled=disabled, seen=seen)
+        session = select_multi_session(
+            packs,
+            cards,
+            disabled=disabled,
+            seen=seen,
+            new_per_session=settings.new_per_session,
+        )
         if not session:
             self.app.notify("All caught up -- nothing to practice right now")
             return
@@ -1036,11 +1043,13 @@ class SettingsScreen(Screen):
             return
         self._settings = settings
         self._storage.save_settings(settings)
+        self.app.settings = settings
         self.app.notify("Settings saved")
 
     def _reset(self) -> None:
         self._settings = Settings()
         self._storage.save_settings(self._settings)
+        self.app.settings = self._settings
         for field_name, _, _ in SETTING_FIELDS:
             self.query_one(f"#setting-{field_name}", Input).value = str(
                 getattr(self._settings, field_name)
@@ -1054,8 +1063,6 @@ class QuizScreen(Screen):
         ("f4", "dismiss_card", "Skip forever"),
     ]
 
-    AUTO_ADVANCE_TICKS = 4  # 4 ticks at 1s each = 3 dots shown then advance
-    AUTO_ADVANCE_INTERVAL_S = 1.0
     DOT_CHAR = "●"
 
     def __init__(
@@ -1067,6 +1074,7 @@ class QuizScreen(Screen):
         super().__init__()
         self._packs = packs
         self._storage = storage
+        self._settings = storage.load_settings()
         self._cards: dict[str, Card] = storage.load_cards()
         self._aliases: dict[str, set[str]] = storage.load_aliases()
         self._disabled: set[str] = storage.load_disabled()
@@ -1076,7 +1084,11 @@ class QuizScreen(Screen):
             self._session = [(s, packs[0]) for s in force]
         else:
             self._session = select_multi_session(
-                packs, self._cards, disabled=self._disabled, seen=self._seen
+                packs,
+                self._cards,
+                disabled=self._disabled,
+                seen=self._seen,
+                new_per_session=self._settings.new_per_session,
             )
         self._index = 0
         self._state: QuizState = QuizState.ASKING
@@ -1087,15 +1099,22 @@ class QuizScreen(Screen):
         self._pending_elapsed_ms: int = 0
         self._auto_advance_step = 0
         self._auto_advance_timer = None
+        auto_secs = self._settings.auto_advance_secs
+        self._auto_advance_interval = auto_secs / 4
+        self._auto_advance_ticks = 4
 
     def _compute_thresholds(self) -> Thresholds:
+        defaults = Thresholds(
+            fast_ms=self._settings.fast_ms,
+            slow_ms=self._settings.slow_ms,
+        )
         cutoff = datetime.now(timezone.utc) - timedelta(days=PERSONAL_LOOKBACK_DAYS)
         recent_signals = [
             signals
             for _sid, log, signals in self._storage.read_reviews()
             if datetime.fromisoformat(log.to_dict()["review_datetime"]) >= cutoff
         ]
-        return get_thresholds(recent_signals)
+        return get_thresholds(recent_signals, defaults=defaults)
 
     def _expected_seq(self, shortcut: Shortcut, pack: Pack) -> list[str]:
         if pack.prefix:
@@ -1166,7 +1185,7 @@ class QuizScreen(Screen):
         self._cancel_auto_advance()
         self._auto_advance_step = 0
         self._auto_advance_timer = self.set_interval(
-            self.AUTO_ADVANCE_INTERVAL_S, self._tick_auto_advance
+            self._auto_advance_interval, self._tick_auto_advance
         )
 
     def _cancel_auto_advance(self) -> None:
@@ -1177,7 +1196,7 @@ class QuizScreen(Screen):
 
     def _tick_auto_advance(self) -> None:
         self._auto_advance_step += 1
-        if self._auto_advance_step >= self.AUTO_ADVANCE_TICKS:
+        if self._auto_advance_step >= self._auto_advance_ticks:
             self._cancel_auto_advance()
             self._finalize(correct=True)
         else:
@@ -1464,6 +1483,7 @@ class KeypalApp(App):
         super().__init__()
         self.packs = builtin_packs()
         self.storage = Storage()
+        self.settings = self.storage.load_settings()
         self.tmux_swap = TmuxPrefixSwap()
         atexit.register(self.tmux_swap.deactivate)
 

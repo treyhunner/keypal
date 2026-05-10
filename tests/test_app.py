@@ -501,3 +501,14 @@ async def test_settings_escape_returns_home(tmp_path):
         assert isinstance(app.screen, SettingsScreen)
         await pilot.press("escape")
         assert isinstance(app.screen, HomeScreen)
+
+
+@pytest.mark.asyncio
+async def test_new_per_session_setting_limits_session_size(tmp_path):
+    storage = Storage(base_dir=tmp_path)
+    storage.save_settings(Settings(new_per_session=1))
+    app = make_app(tmp_path)
+    async with app.run_test() as pilot:
+        await pilot.press("p")
+        assert isinstance(app.screen, QuizScreen)
+        assert len(app.screen._session) == 1
