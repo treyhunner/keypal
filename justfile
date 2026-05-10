@@ -1,5 +1,5 @@
 # Show available commands
-_list:
+_default:
     @just --list --unsorted
 
 # Run the app
@@ -20,7 +20,15 @@ qa:
     uv run ruff check . --fix
     uv run pytest
 
-# Build sdist and wheel
+# Bump version (usage: just bump patch|minor|major)
+bump value:
+    uv version --bump {{ value }}
+
+# Build the package
 build:
-    rm -rf dist
-    uv build
+    uv sync
+    uv build --clear
+
+# Publish to PyPI
+publish:
+    uv publish
