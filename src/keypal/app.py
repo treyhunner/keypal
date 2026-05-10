@@ -28,7 +28,10 @@ from textual.widgets import (
 from keypal.keys import matches, normalize, prettify_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import (
+    PERSONAL_FULL_REVIEWS,
     PERSONAL_LOOKBACK_DAYS,
+    PERSONAL_MIN_REVIEWS,
+    SANITY_MAX_TIMING_MS,
     Thresholds,
     get_thresholds,
     review,
@@ -1001,9 +1004,9 @@ class SettingsScreen(Screen):
         super().__init__()
         self._storage = storage
         self._settings = storage.load_settings()
-        self._effective = self._compute_effective()
+        self._effective, self._review_count = self._compute_effective()
 
-    def _compute_effective(self) -> Thresholds:
+    def _compute_effective(self) -> tuple[Thresholds, int]:
         cutoff = datetime.now(timezone.utc) - timedelta(days=PERSONAL_LOOKBACK_DAYS)
         defaults = Thresholds(
             fast_ms=self._settings.fast_ms,
@@ -1014,13 +1017,30 @@ class SettingsScreen(Screen):
             for _sid, log, signals in self._storage.read_reviews()
             if datetime.fromisoformat(log.to_dict()["review_datetime"]) >= cutoff
         ]
-        return get_thresholds(recent_signals, defaults=defaults)
+        response_times = [s.get("response_time_ms") for s in recent_signals]
+        sane_count = len(
+            [
+                rt
+                for rt in response_times
+                if rt is not None and 0 <= rt <= SANITY_MAX_TIMING_MS
+            ]
+        )
+        return get_thresholds(recent_signals, defaults=defaults), sane_count
 
     def _threshold_note(self) -> str:
+        n = self._review_count
         effective = self._effective
+        if n < PERSONAL_MIN_REVIEWS:
+            return f"Using your baselines ({n}/{PERSONAL_MIN_REVIEWS} reviews until auto-adjust)"
+        if n < PERSONAL_FULL_REVIEWS:
+            return (
+                f"Blending baselines with your data ({n} reviews).\n"
+                f"Effective: {effective.fast_ms:,} / {effective.slow_ms:,} ms"
+            )
         return (
-            f"These auto-adjust as you practice.\n"
-            f"Currently using: {effective.fast_ms:,} / {effective.slow_ms:,} ms"
+            f"Fully auto-adjusted from your data ({n} reviews).\n"
+            f"Effective: {effective.fast_ms:,} / {effective.slow_ms:,} ms.\n"
+            f"Baselines above are not currently used."
         )
 
     def compose(self) -> ComposeResult:
