@@ -10,16 +10,24 @@ Spaced-repetition practice for keyboard shortcuts in your terminal. Build muscle
 
 ## Install
 
-For now, clone and run from source:
+```sh
+uv tool install keypal
+```
+
+Or run without installing:
 
 ```sh
-git clone <repo>
+uvx keypal
+```
+
+To run from source (you may need to `uv tool install rust-just` first):
+
+```sh
+git clone https://github.com/treyhunner/keypal
 cd keypal
 uv sync
 just run
 ```
-
-(Pip/pipx packaging is on the TODO list.)
 
 ## Built-in packs
 
@@ -81,27 +89,6 @@ Override the location with the `KEYPAL_DATA_DIR` environment variable.
 - **Your terminal emulator may eat some shortcuts** before they reach keypal (GNOME Terminal binds Ctrl+Shift+F to Find, for example). Use the diagnostic screen (D) to confirm. Fix in your terminal's preferences.
 - **Inside tmux**, shortcuts that conflict with your tmux prefix won't reach keypal unless you opt in to the per-pack prefix swap (offered automatically when you enter the tmux pack).
 - Keys that physically exist on the keyboard but aren't in keypal (rare combos, complex chords beyond two keys) need to be added to a pack manually.
-
-## Custom packs
-
-Drop a `.toml` file in `~/.config/keypal/packs/` (TODO: not yet implemented; for now, edit `src/keypal/packs/`).
-
-Pack format:
-
-```toml
-[pack]
-id = "my-app"
-name = "My App"
-description = "Shortcuts for thing I use"
-prefix = "ctrl+a"  # optional; for chord shortcuts like tmux
-
-[[shortcuts]]
-action = "Open settings"
-keys = ["ctrl+,"]
-tags = ["meta"]
-shared_id = "readline:Open settings"  # optional; shares FSRS card across packs
-command = "settings:open"             # optional; for dynamic key substitution from live config
-```
 
 ## Contributing
 
