@@ -123,15 +123,65 @@ def test_keys_by_simplicity_orders_by_modifiers_then_length():
     assert keys_by_simplicity(["alt+f", "ctrl+right"]) == ["alt+f", "ctrl+right"]
 
 
-def test_matches_terminal_equivalents():
-    # Terminals encode Ctrl+H as Backspace, Ctrl+I as Tab, etc. — same byte.
-    assert matches("backspace", ["ctrl+h"]) is True
-    assert matches("ctrl+h", ["backspace"]) is True
-    assert matches("tab", ["ctrl+i"]) is True
-    assert matches("enter", ["ctrl+m"]) is True
-    assert matches("escape", ["ctrl+["]) is True
-    # Non-equivalents still don't match
-    assert matches("backspace", ["ctrl+a"]) is False
+def test_qt_event_to_combo_basic():
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    from keypal.keys import qt_event_to_combo
+
+    event = QKeyEvent(
+        QEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier, ""
+    )
+    assert qt_event_to_combo(event) == "ctrl+a"
+
+
+def test_qt_event_to_combo_pure_modifier_returns_none():
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    from keypal.keys import qt_event_to_combo
+
+    event = QKeyEvent(
+        QEvent.Type.KeyPress,
+        Qt.Key.Key_Control,
+        Qt.KeyboardModifier.ControlModifier,
+        "",
+    )
+    assert qt_event_to_combo(event) is None
+
+
+def test_qt_event_to_combo_lock_keys_return_none():
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    from keypal.keys import qt_event_to_combo
+
+    for key in (Qt.Key.Key_CapsLock, Qt.Key.Key_NumLock, Qt.Key.Key_ScrollLock):
+        event = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier(0), "")
+        assert qt_event_to_combo(event) is None, f"{key} should return None"
+
+
+def test_qt_event_to_combo_special_key():
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    from keypal.keys import qt_event_to_combo
+
+    event = QKeyEvent(
+        QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier(0), ""
+    )
+    assert qt_event_to_combo(event) == "escape"
+
+
+def test_qt_event_to_combo_ctrl_shift():
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    from keypal.keys import qt_event_to_combo
+
+    mods = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_F, mods, "")
+    assert qt_event_to_combo(event) == "ctrl+shift+f"
 
 
 def test_prettify_key_modifiers():
