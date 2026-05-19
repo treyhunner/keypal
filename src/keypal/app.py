@@ -57,19 +57,19 @@ class KeyChip(QLabel):
     @staticmethod
     def _style_for(state: str) -> str:
         base = (
-            "QLabel { font-weight: bold; font-size: 16px; "
+            "QLabel { font-weight: bold; font-size: 18px; "
             "border: 2px solid palette(mid); border-radius: 4px; "
             "padding: 4px 8px; }"
         )
         if state == "correct":
             base = (
-                "QLabel { font-weight: bold; font-size: 16px; "
+                "QLabel { font-weight: bold; font-size: 18px; "
                 "border: 2px solid #2e7d32; border-radius: 4px; "
                 "padding: 4px 8px; background-color: rgba(46, 125, 50, 0.15); }"
             )
         elif state == "wrong":
             base = (
-                "QLabel { font-weight: bold; font-size: 16px; "
+                "QLabel { font-weight: bold; font-size: 18px; "
                 "border: 2px solid #c62828; border-radius: 4px; "
                 "padding: 4px 8px; background-color: rgba(198, 40, 40, 0.15); }"
             )
@@ -92,7 +92,7 @@ class KeyCombo(QWidget):
         for i, part in enumerate(seq):
             if i > 0:
                 arrow = QLabel("  then  ")
-                arrow.setStyleSheet("color: gray; font-size: 14px;")
+                arrow.setStyleSheet("color: gray; font-size: 16px;")
                 self._layout.addWidget(arrow)
             try:
                 tokens = prettify_combo(part)
@@ -101,7 +101,7 @@ class KeyCombo(QWidget):
             for j, token in enumerate(tokens):
                 if j > 0:
                     plus = QLabel("+")
-                    plus.setStyleSheet("color: gray; font-size: 14px;")
+                    plus.setStyleSheet("color: gray; font-size: 16px;")
                     self._layout.addWidget(plus)
                 chip = KeyChip(token, state=chip_class)
                 self._layout.addWidget(chip)
@@ -123,7 +123,7 @@ class TextBufferDemo(QLabel):
         self._showing_before = True
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet(
-            "QLabel { font-family: monospace; font-size: 16px; "
+            "QLabel { font-family: monospace; font-size: 18px; "
             "border: 1px solid palette(mid); border-radius: 4px; padding: 4px 8px; }"
         )
         self.setText(self._before)
@@ -171,18 +171,18 @@ class PackCard(QWidget):
         header.addWidget(self._checkbox)
         self._name_label = QLabel(pack.name)
         self._name_label.setStyleSheet(
-            f"font-weight: bold; color: {color}; font-size: 14px;"
+            f"font-weight: bold; color: {color}; font-size: 16px;"
         )
         header.addWidget(self._name_label)
         header.addStretch()
         layout.addLayout(header)
 
         self._desc_label = QLabel(pack.description)
-        self._desc_label.setStyleSheet("color: gray; font-size: 12px;")
+        self._desc_label.setStyleSheet("color: gray; font-size: 13px;")
         layout.addWidget(self._desc_label)
 
         self._counts_label = QLabel()
-        self._counts_label.setStyleSheet("font-size: 12px;")
+        self._counts_label.setStyleSheet("font-size: 13px;")
         layout.addWidget(self._counts_label)
 
     @property
@@ -217,7 +217,7 @@ class HomeScreen(QWidget):
         content.setContentsMargins(20, 20, 20, 20)
 
         self._practice_btn = QPushButton("Practice")
-        self._practice_btn.setStyleSheet("font-size: 16px; padding: 8px;")
+        self._practice_btn.setStyleSheet("font-size: 18px; padding: 8px;")
         self._practice_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._practice_btn.clicked.connect(self._start_practice)
         content.addWidget(self._practice_btn)
@@ -248,7 +248,7 @@ class HomeScreen(QWidget):
         hint = QLabel(
             "P practice | B browse | S stats | C settings | D diagnostic | Q quit"
         )
-        hint.setStyleSheet("color: gray; font-size: 11px;")
+        hint.setStyleSheet("color: gray; font-size: 12px;")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content.addWidget(hint)
 
@@ -441,7 +441,7 @@ class QuizScreen(QWidget):
 
         self._prompt = QLabel()
         self._prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._prompt.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self._prompt.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(self._prompt)
 
         self._your_combo = KeyCombo()
@@ -449,12 +449,12 @@ class QuizScreen(QWidget):
 
         self._verdict = QLabel()
         self._verdict.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._verdict.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self._verdict.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(self._verdict)
 
         self._dots = QLabel()
         self._dots.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._dots.setStyleSheet("font-size: 16px;")
+        self._dots.setStyleSheet("font-size: 18px;")
         layout.addWidget(self._dots)
 
         self._expected_label = QLabel()
@@ -476,7 +476,7 @@ class QuizScreen(QWidget):
 
         self._hint = QLabel()
         self._hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._hint.setStyleSheet("color: gray; font-size: 12px;")
+        self._hint.setStyleSheet("color: gray; font-size: 13px;")
         layout.addWidget(self._hint)
 
         self._begin_card()
@@ -557,7 +557,7 @@ class QuizScreen(QWidget):
         self._expected_combo.clear()
         self._expected_label.setText("")
         self._verdict.setText("")
-        self._verdict.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self._verdict.setStyleSheet("font-size: 18px; font-weight: bold;")
         self._dots.setText("")
         self._demo_label.setText("")
         while self._demo_container.count():
@@ -600,7 +600,7 @@ class QuizScreen(QWidget):
             self._your_combo.set_combo(expected_seq, chip_class="correct")
             self._verdict.setText("Correct")
             self._verdict.setStyleSheet(
-                "font-size: 16px; font-weight: bold; color: #2e7d32;"
+                "font-size: 18px; font-weight: bold; color: #2e7d32;"
             )
             self._dots.setText(
                 " ".join(
@@ -618,7 +618,7 @@ class QuizScreen(QWidget):
         # WRONG_PRACTICE
         self._verdict.setText("Wrong" if self._last_pressed_seq else "Don't know")
         self._verdict.setStyleSheet(
-            "font-size: 16px; font-weight: bold; color: #c62828;"
+            "font-size: 18px; font-weight: bold; color: #c62828;"
         )
         self._expected_label.setText("Try this:")
         self._expected_combo.set_combo(expected_seq, chip_class="correct")
@@ -834,7 +834,7 @@ class BrowseScreen(QWidget):
 
         title = QLabel(pack.name)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
         desc = QLabel(pack.description)
@@ -860,7 +860,7 @@ class BrowseScreen(QWidget):
 
         hint = QLabel("Enter to practice | F4 to toggle skip | Esc to go back")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint.setStyleSheet("color: gray; font-size: 11px;")
+        hint.setStyleSheet("color: gray; font-size: 12px;")
         layout.addWidget(hint)
 
     def _browse_label(self, shortcut: Shortcut) -> str:
@@ -924,7 +924,7 @@ class StatsScreen(QWidget):
 
         title = QLabel("Stats")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
         body = QLabel(self._render_stats(packs, storage))
@@ -933,7 +933,7 @@ class StatsScreen(QWidget):
 
         hint = QLabel("Esc to go back")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint.setStyleSheet("color: gray; font-size: 11px;")
+        hint.setStyleSheet("color: gray; font-size: 12px;")
         layout.addWidget(hint)
 
     def _render_stats(self, packs: tuple[Pack, ...], storage: Storage) -> str:
@@ -1026,7 +1026,7 @@ class SettingsScreen(QWidget):
 
         title = QLabel("Settings")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
         self._inputs: dict[str, QLineEdit] = {}
@@ -1037,7 +1037,7 @@ class SettingsScreen(QWidget):
             lbl.setStyleSheet("font-weight: bold;")
             row.addWidget(lbl)
             desc_lbl = QLabel(desc)
-            desc_lbl.setStyleSheet("color: gray; font-size: 11px;")
+            desc_lbl.setStyleSheet("color: gray; font-size: 12px;")
             row.addWidget(desc_lbl)
             inp = QLineEdit(str(getattr(self._settings, field_name)))
             self._inputs[field_name] = inp
@@ -1061,13 +1061,13 @@ class SettingsScreen(QWidget):
         layout.addLayout(btn_layout)
 
         path_label = QLabel(f"Stored in {storage.settings_path}")
-        path_label.setStyleSheet("color: gray; font-size: 10px;")
+        path_label.setStyleSheet("color: gray; font-size: 11px;")
         path_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(path_label)
 
         hint = QLabel("Esc to go back")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint.setStyleSheet("color: gray; font-size: 11px;")
+        hint.setStyleSheet("color: gray; font-size: 12px;")
         layout.addWidget(hint)
 
     def _on_auto_adjust_toggled(self, checked: bool) -> None:
@@ -1120,7 +1120,7 @@ class DiagnosticScreen(QWidget):
 
         title = QLabel("Key Diagnostic")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 18px; font-weight: bold;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(title)
 
         prompt = QLabel("Press any key combo")
@@ -1141,7 +1141,7 @@ class DiagnosticScreen(QWidget):
 
         hint = QLabel("Esc to return")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint.setStyleSheet("color: gray; font-size: 11px;")
+        hint.setStyleSheet("color: gray; font-size: 12px;")
         layout.addWidget(hint)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -1184,6 +1184,7 @@ class KeypalApp(QMainWindow):
         self.setWindowTitle("keypal")
         self.setMinimumSize(500, 400)
         self.resize(600, 500)
+        self.setStyleSheet("QWidget { font-size: 14px; }")
 
         self.packs = builtin_packs()
         self.storage = Storage()
