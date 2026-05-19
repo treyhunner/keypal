@@ -9,14 +9,15 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -919,14 +920,26 @@ class BrowseScreen(QWidget):
             prefix_label.setStyleSheet("color: gray; font-style: italic;")
             layout.addWidget(prefix_label)
 
-        self._list = QListWidget()
-        self._list.itemDoubleClicked.connect(self._on_item_double_clicked)
-        layout.addWidget(self._list)
+        self._table = QTableWidget(len(pack.shortcuts), 3)
+        self._table.setHorizontalHeaderLabels(["Action", "Keys", "Status"])
+        self._table.verticalHeader().setVisible(False)
+        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.cellDoubleClicked.connect(self._on_row_double_clicked)
+        layout.addWidget(self._table)
 
         for i, shortcut in enumerate(pack.shortcuts):
-            item = QListWidgetItem(self._browse_label(shortcut))
-            item.setData(Qt.ItemDataRole.UserRole, i)
-            self._list.addItem(item)
+            self._table.setItem(i, 0, QTableWidgetItem(shortcut.action))
+            self._table.setCellWidget(i, 1, self._keys_widget(shortcut))
+            self._table.setItem(i, 2, QTableWidgetItem(self._status_text(shortcut)))
+        self._table.resizeRowsToContents()
+        self._table.selectRow(0)
 
         layout.addWidget(HintBar([
             ("Enter", "Practice", self._practice_selected),
@@ -934,47 +947,66 @@ class BrowseScreen(QWidget):
             ("Esc", "Back", self._app.pop_screen),
         ]))
 
+    def _keys_widget(self, shortcut: Shortcut) -> QWidget:
+        widget = QWidget()
+        row = QHBoxLayout(widget)
+        row.setContentsMargins(4, 2, 4, 2)
+        row.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        for j, key in enumerate(shortcut.keys):
+            if j > 0:
+                slash = QLabel(" / ")
+                slash.setStyleSheet("color: gray;")
+                row.addWidget(slash)
+            tokens = prettify_combo(key)
+            for k, token in enumerate(tokens):
+                if k > 0:
+                    plus = QLabel("+")
+                    plus.setStyleSheet("color: gray;")
+                    row.addWidget(plus)
+                row.addWidget(KeyChip(token))
+        return widget
+
+    def _status_text(self, shortcut: Shortcut) -> str:
+        sid = self._pack.shortcut_id(shortcut)
+        parts = []
+        if sid in self._disabled:
+            parts.append("skipped")
+        if shortcut.shared_id and not shortcut.shared_id.startswith(
+            f"{self._pack.id}:"
+        ):
+            ns = shortcut.shared_id.split(":", 1)[0]
+            parts.append(f"common with {ns}")
+        return " | ".join(parts)
+
+    def _selected_row(self) -> int:
+        return self._table.currentRow()
+
     def _practice_selected(self) -> None:
-        item = self._list.currentItem()
-        if item:
-            idx = item.data(Qt.ItemDataRole.UserRole)
-            shortcut = self._pack.shortcuts[idx]
+        row = self._selected_row()
+        if 0 <= row < len(self._pack.shortcuts):
+            shortcut = self._pack.shortcuts[row]
             self._app.push_screen(
                 QuizScreen(self._app, (self._pack,), self._storage, force=[shortcut])
             )
 
     def _toggle_skip(self) -> None:
-        item = self._list.currentItem()
-        if item:
-            idx = item.data(Qt.ItemDataRole.UserRole)
-            shortcut = self._pack.shortcuts[idx]
+        row = self._selected_row()
+        if 0 <= row < len(self._pack.shortcuts):
+            shortcut = self._pack.shortcuts[row]
             sid = self._pack.shortcut_id(shortcut)
             if sid in self._disabled:
                 self._disabled.discard(sid)
             else:
                 self._disabled.add(sid)
             self._storage.save_disabled(self._disabled)
-            item.setText(self._browse_label(shortcut))
+            self._table.setItem(row, 2, QTableWidgetItem(self._status_text(shortcut)))
 
-    def _browse_label(self, shortcut: Shortcut) -> str:
-        action = shortcut.action
-        keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
-        sid = self._pack.shortcut_id(shortcut)
-        skipped = "  (skipped)" if sid in self._disabled else ""
-        shared = ""
-        if shortcut.shared_id and not shortcut.shared_id.startswith(
-            f"{self._pack.id}:"
-        ):
-            ns = shortcut.shared_id.split(":", 1)[0]
-            shared = f"  (common with {ns})"
-        return f"{action}    {keys}{shared}{skipped}"
-
-    def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
-        idx = item.data(Qt.ItemDataRole.UserRole)
-        shortcut = self._pack.shortcuts[idx]
-        self._app.push_screen(
-            QuizScreen(self._app, (self._pack,), self._storage, force=[shortcut])
-        )
+    def _on_row_double_clicked(self, row: int, _column: int) -> None:
+        if 0 <= row < len(self._pack.shortcuts):
+            shortcut = self._pack.shortcuts[row]
+            self._app.push_screen(
+                QuizScreen(self._app, (self._pack,), self._storage, force=[shortcut])
+            )
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         key = event.key()
@@ -984,6 +1016,12 @@ class BrowseScreen(QWidget):
             self._practice_selected()
         elif key == Qt.Key.Key_F4:
             self._toggle_skip()
+        elif key == Qt.Key.Key_Up:
+            row = max(0, self._selected_row() - 1)
+            self._table.selectRow(row)
+        elif key == Qt.Key.Key_Down:
+            row = min(self._table.rowCount() - 1, self._selected_row() + 1)
+            self._table.selectRow(row)
         else:
             super().keyPressEvent(event)
 
