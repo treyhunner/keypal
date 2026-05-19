@@ -283,20 +283,34 @@ class HomeScreen(QWidget):
 
         self._update_selection_highlight()
 
-        content.addWidget(HintBar([
-            ("P", "Practice", self._start_practice),
-            ("B", "Browse", self._browse_highlighted),
-            ("S", "Stats", lambda: self._app.push_screen(
-                StatsScreen(self._app, self._app.packs, self._app.storage)
-            )),
-            ("C", "Settings", lambda: self._app.push_screen(
-                SettingsScreen(self._app, self._app.storage)
-            )),
-            ("D", "Diagnostic", lambda: self._app.push_screen(
-                DiagnosticScreen(self._app)
-            )),
-            ("Q", "Quit", self._app.close),
-        ]))
+        content.addWidget(
+            HintBar(
+                [
+                    ("P", "Practice", self._start_practice),
+                    ("B", "Browse", self._browse_highlighted),
+                    (
+                        "S",
+                        "Stats",
+                        lambda: self._app.push_screen(
+                            StatsScreen(self._app, self._app.packs, self._app.storage)
+                        ),
+                    ),
+                    (
+                        "C",
+                        "Settings",
+                        lambda: self._app.push_screen(
+                            SettingsScreen(self._app, self._app.storage)
+                        ),
+                    ),
+                    (
+                        "D",
+                        "Diagnostic",
+                        lambda: self._app.push_screen(DiagnosticScreen(self._app)),
+                    ),
+                    ("Q", "Quit", self._app.close),
+                ]
+            )
+        )
 
         layout.addLayout(content)
 
@@ -616,9 +630,11 @@ class QuizScreen(QWidget):
             self._progress.setText("")
             self._pack_label.setText("")
             self._prompt.setText("Session complete")
-            self._hint.set_hints([
-                ("Enter", "Return Home", self._app.pop_screen),
-            ])
+            self._hint.set_hints(
+                [
+                    ("Enter", "Return Home", self._app.pop_screen),
+                ]
+            )
             return
 
         shortcut, pack = current
@@ -638,10 +654,12 @@ class QuizScreen(QWidget):
                 self._your_combo.set_combo(list(self._chord_buffer))
                 self._hint.set_hints("Now press the next key...")
             else:
-                self._hint.set_hints([
-                    ("Space", "Don't Know", self._give_up),
-                    ("F4", "Skip Forever", self._action_dismiss_card),
-                ])
+                self._hint.set_hints(
+                    [
+                        ("Space", "Don't Know", self._give_up),
+                        ("F4", "Skip Forever", self._action_dismiss_card),
+                    ]
+                )
             return
 
         expected_seq = self._expected_seq(shortcut, pack)
@@ -662,10 +680,12 @@ class QuizScreen(QWidget):
                 self._demo_label.setText("What it does:")
                 demo = TextBufferDemo(shortcut.demo_before, shortcut.demo_after)
                 self._demo_container.addWidget(demo)
-            self._hint.set_hints([
-                ("Enter", "Continue", self._accept_correct),
-                ("F4", "Skip Forever", self._action_dismiss_card),
-            ])
+            self._hint.set_hints(
+                [
+                    ("Enter", "Continue", self._accept_correct),
+                    ("F4", "Skip Forever", self._action_dismiss_card),
+                ]
+            )
             return
 
         # WRONG_PRACTICE
@@ -685,11 +705,13 @@ class QuizScreen(QWidget):
         else:
             if self._last_pressed_seq:
                 self._your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
-            self._hint.set_hints([
-                ("Y", "Had It", self._claim_correct),
-                ("Enter", "Skip", self._skip_once),
-                ("F4", "Skip Forever", self._action_dismiss_card),
-            ])
+            self._hint.set_hints(
+                [
+                    ("Y", "Had It", self._claim_correct),
+                    ("Enter", "Skip", self._skip_once),
+                    ("F4", "Skip Forever", self._action_dismiss_card),
+                ]
+            )
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.isAutoRepeat():
@@ -941,11 +963,15 @@ class BrowseScreen(QWidget):
         self._table.resizeRowsToContents()
         self._table.selectRow(0)
 
-        layout.addWidget(HintBar([
-            ("Enter", "Practice", self._practice_selected),
-            ("F4", "Toggle Skip", self._toggle_skip),
-            ("Esc", "Back", self._app.pop_screen),
-        ]))
+        layout.addWidget(
+            HintBar(
+                [
+                    ("Enter", "Practice", self._practice_selected),
+                    ("F4", "Toggle Skip", self._toggle_skip),
+                    ("Esc", "Back", self._app.pop_screen),
+                ]
+            )
+        )
 
     def _keys_widget(self, shortcut: Shortcut) -> QWidget:
         widget = QWidget()
