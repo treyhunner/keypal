@@ -38,3 +38,11 @@ package:
     uv run briefcase create linux flatpak
     echo "--isolated" >> build/keypal/linux/flatpak/pip-options.txt
     uv run briefcase build linux flatpak
+    uv run briefcase package linux flatpak
+
+# Build Flatpak and attach to a new GitHub Release
+publish-package: package
+    gh release create v$(uv version --short) \
+        --title "v$(uv version --short)" \
+        --generate-notes \
+        "dist/KeyPal-$(uv version --short)-x86_64.flatpak"
