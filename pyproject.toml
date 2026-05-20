@@ -62,4 +62,7 @@ requires = [
 min_os_version = "12.0"
 
 [tool.briefcase.app.keypal.linux]
-linuxdeploy_plugins = ["qt"]
+flatpak_runtime = "org.kde.Platform"
+flatpak_sdk = "org.kde.Sdk"
+flatpak_runtime_version = "6.10"
+
