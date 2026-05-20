@@ -10,6 +10,14 @@ Spaced-repetition practice for keyboard shortcuts. Build muscle memory for the s
 
 ## Install
 
+**Linux** (no Python required): download the `.flatpak` from [GitHub Releases](https://github.com/treyhunner/keypal/releases) and install it:
+
+```sh
+flatpak install KeyPal-x.x.x-x86_64.flatpak
+```
+
+**Any platform** with [uv](https://docs.astral.sh/uv/) installed:
+
 ```sh
 uv tool install keypal
 ```
