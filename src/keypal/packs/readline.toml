@@ -53,6 +53,13 @@ demo_before = "git commit │-m 'message'"
 demo_after = "git │-m 'message'"
 
 [[shortcuts]]
+action = "Delete word after cursor"
+keys = ["alt+d"]
+tags = ["editing"]
+demo_before = "git │commit -m 'message'"
+demo_after = "git │ -m 'message'"
+
+[[shortcuts]]
 action = "Yank (paste) most recently killed text"
 keys = ["ctrl+y"]
 tags = ["editing"]

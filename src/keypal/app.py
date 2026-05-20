@@ -1,31 +1,28 @@
-import atexit
 import time
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 
-import darkdetect
 from fsrs import Card, State
-from textual import events
-from textual._ansi_sequences import ANSI_SEQUENCES_KEYS, IGNORE_SEQUENCE
-from textual._xterm_parser import XTermParser
-from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.driver import Driver
-from textual.drivers.linux_driver import LinuxDriver
-from textual.keys import Keys
-from textual.screen import ModalScreen, Screen
-from textual.widgets import (
-    Button,
-    Checkbox,
-    Footer,
-    Header,
-    Input,
-    ListItem,
-    ListView,
-    Static,
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from keypal.keys import matches, normalize, prettify_combo
+from keypal.keys import matches, normalize, prettify_combo, qt_event_to_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import (
     PERSONAL_LOOKBACK_DAYS,
@@ -35,402 +32,14 @@ from keypal.scheduler import (
     select_multi_session,
 )
 from keypal.storage import Settings, Storage
-from keypal.tmux import TmuxPrefixSwap, current_tmux_prefix, inside_tmux
+
 
 PACK_COLORS = {
-    "readline": "green",
-    "python_repl": "blue",
-    "tmux": "yellow",
-    "obsidian": "magenta",
+    "readline": "#2e7d32",
+    "python_repl": "#1565c0",
+    "tmux": "#f9a825",
+    "obsidian": "#7b1fa2",
 }
-
-
-# --- Monkey-patch for https://github.com/Textualize/textual/issues/6378 ---
-# Textual's XTermParser silently drops the Alt prefix for keys whose ANSI
-# sequence maps to a tuple in ANSI_SEQUENCES_KEYS (Enter, Space, Backspace,
-# Tab, all Ctrl+letter). Pressing Alt+Enter produces Key("enter") instead of
-# Key("alt+enter"). The "tuple branch" in `_sequence_to_key_events` ignores
-# the alt parameter; the single-character branch (a few lines below it) does
-# check it. Until upstream fixes it, replicate the alt-prefix handling here.
-_textual_original_sequence_to_key_events = XTermParser._sequence_to_key_events
-
-
-def _patched_sequence_to_key_events(self, sequence: str, alt: bool = False):
-    if alt:
-        keys = ANSI_SEQUENCES_KEYS.get(sequence)
-        if keys is not IGNORE_SEQUENCE and isinstance(keys, tuple):
-            for key in keys:
-                name = key.value
-                if name and name != Keys.Escape.value:
-                    name = f"alt+{name}"
-                yield events.Key(name, sequence if len(sequence) == 1 else None)
-            return
-    yield from _textual_original_sequence_to_key_events(self, sequence, alt)
-
-
-XTermParser._sequence_to_key_events = _patched_sequence_to_key_events
-
-
-CSS = """
-Screen {
-    align: center middle;
-}
-
-#home-content, #quiz-content, #stats-content {
-    width: 64;
-    max-width: 100%;
-    height: auto;
-}
-
-/* === Home === */
-
-#practice-btn {
-    width: 100%;
-    margin-bottom: 1;
-}
-
-ListView {
-    width: 100%;
-    height: auto;
-    background: transparent;
-    border: none;
-    padding: 0;
-}
-
-ListItem {
-    padding: 1 2;
-    height: auto;
-    background: $surface;
-    margin-bottom: 1;
-    border-left: thick $surface;
-}
-
-ListItem.--highlight {
-    background: $boost;
-    border-left: thick $accent;
-}
-
-.pack-header {
-    width: 100%;
-    height: 1;
-}
-
-.pack-header Checkbox {
-    width: auto;
-    height: 1;
-    padding: 0;
-    border: none;
-    background: transparent;
-    min-width: 0;
-}
-
-.pack-name {
-    width: 1fr;
-    text-style: bold;
-    color: $accent;
-}
-
-.pack-desc {
-    width: 100%;
-    color: $text-muted;
-}
-
-.pack-summary {
-    width: 100%;
-    color: $primary;
-    margin-top: 1;
-}
-
-/* === Quiz === */
-
-#progress, #pack-label, #prompt, #verdict, #hint, #expected-label {
-    width: 100%;
-    text-align: center;
-}
-
-#progress {
-    color: $text-muted;
-    height: 1;
-    margin-bottom: 1;
-}
-
-#pack-label {
-    height: 1;
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-#prompt {
-    text-style: bold;
-    color: $accent;
-    height: 1;
-    margin-bottom: 2;
-}
-
-#verdict {
-    text-style: bold;
-    height: 1;
-    margin-top: 1;
-}
-
-#verdict.correct {
-    color: $success-darken-2;
-}
-
-#verdict.wrong {
-    color: $error;
-}
-
-#expected-label {
-    color: $text-muted;
-    height: 1;
-    margin-top: 1;
-}
-
-#hint {
-    color: $text-muted;
-    height: 1;
-    margin-top: 2;
-}
-
-#auto-advance-dots {
-    width: 100%;
-    height: 1;
-    margin-top: 1;
-}
-
-#auto-advance-dots .dot {
-    width: 1fr;
-    text-align: center;
-    color: $accent;
-    text-style: bold;
-}
-
-/* === Key chips === */
-
-KeyCombo {
-    width: 100%;
-    height: 3;
-    align-horizontal: center;
-}
-
-KeyChip {
-    border: round $primary;
-    padding: 0 1;
-    height: 3;
-    width: auto;
-    color: $foreground;
-    background: $surface;
-    text-style: bold;
-}
-
-KeyChip.correct {
-    border: round $success;
-    background: $success 15%;
-}
-
-KeyChip.wrong {
-    border: round $error;
-    background: $error 15%;
-}
-
-.key-plus {
-    width: auto;
-    height: 3;
-    content-align: center middle;
-    color: $text-muted;
-    padding: 0 1;
-}
-
-.chord-separator {
-    width: auto;
-    height: 3;
-    content-align: center middle;
-    color: $accent;
-    padding: 0 1;
-    text-style: bold;
-}
-
-#demo-label {
-    width: 100%;
-    text-align: center;
-    color: $text-muted;
-    height: 1;
-    margin-top: 1;
-}
-
-TextBufferDemo {
-    width: auto;
-    max-width: 100%;
-    height: 3;
-    border: round $primary;
-    padding: 0 1;
-    color: $foreground;
-    background: $surface;
-    content-align: center middle;
-}
-
-#demo-row {
-    width: 100%;
-    height: auto;
-    align-horizontal: center;
-}
-
-/* === Stats === */
-
-#stats-title {
-    width: 100%;
-    text-align: center;
-    text-style: bold;
-    color: $accent;
-    margin-bottom: 1;
-}
-
-#stats-body {
-    width: 100%;
-    height: auto;
-    padding: 1 2;
-    background: $surface;
-}
-
-#browse-content {
-    width: 80;
-    max-width: 100%;
-    height: 100%;
-    padding: 0 2;
-}
-
-#browse-title {
-    text-style: bold;
-    color: $accent;
-    text-align: center;
-    margin-bottom: 1;
-}
-
-#browse-desc {
-    color: $text-muted;
-    text-align: center;
-    margin-bottom: 1;
-}
-
-#browse-prefix {
-    color: $text-muted;
-    text-align: center;
-    margin-bottom: 1;
-}
-
-#browse-list {
-    height: auto;
-    background: transparent;
-    border: none;
-    padding: 0;
-}
-
-#browse-list ListItem {
-    height: 1;
-    padding: 0 1;
-    background: transparent;
-    margin: 0;
-}
-
-#browse-list ListItem.--highlight {
-    background: $boost;
-}
-
-#browse-hint {
-    color: $text-muted;
-    text-align: center;
-    margin-top: 1;
-}
-
-.hidden {
-    display: none;
-}
-
-/* === Settings === */
-
-#settings-content {
-    width: 64;
-    max-width: 100%;
-    height: auto;
-}
-
-#settings-title {
-    width: 100%;
-    text-align: center;
-    text-style: bold;
-    color: $accent;
-    margin-bottom: 1;
-}
-
-.setting-row {
-    width: 100%;
-    height: auto;
-    margin-bottom: 1;
-}
-
-.setting-label {
-    width: 100%;
-    color: $text;
-}
-
-.setting-desc {
-    width: 100%;
-    color: $text-muted;
-}
-
-.setting-row Input {
-    width: 20;
-}
-
-#settings-path {
-    width: 100%;
-    color: $text-muted;
-    text-align: center;
-    margin-top: 1;
-}
-
-#settings-buttons {
-    width: 100%;
-    height: 3;
-    align-horizontal: center;
-    margin-top: 1;
-}
-
-#settings-buttons Button {
-    margin: 0 1;
-}
-"""
-
-
-def _format_relative(delta: timedelta) -> str:
-    """Render a future timedelta as 'a moment', '5 min', '2h', '3d'."""
-    seconds = delta.total_seconds()
-    if seconds < 60:
-        return "a moment"
-    if seconds < 3600:
-        return f"{int(seconds / 60)} min"
-    if seconds < 86400:
-        return f"{int(seconds / 3600)}h"
-    return f"{int(seconds / 86400)}d"
-
-
-class LegacyKeyboardDriver(LinuxDriver):
-    """Linux driver with the kitty keyboard protocol request suppressed.
-
-    The kitty protocol confuses Textual's input parsing in some terminal stacks
-    (notably tmux without `extended-keys on`, GNOME Terminal/VTE, etc.), where
-    `Alt+Enter` ends up reported as plain `enter`. Suppressing the protocol
-    forces the legacy ESC-prefix parser, which reliably maps `\\x1b\\n` to
-    `alt+enter` (the same logic Python's pyrepl uses).
-    """
-
-    _SUPPRESSED = (b"\x1b[>1u", b"\x1b[<u", "\x1b[>1u", "\x1b[<u")
-
-    def write(self, data) -> None:
-        if data in self._SUPPRESSED:
-            return
-        super().write(data)
 
 
 class QuizState(Enum):
@@ -439,271 +48,303 @@ class QuizState(Enum):
     WRONG_PRACTICE = "wrong_practice"
 
 
-class KeyChip(Static):
-    pass
+class KeyChip(QLabel):
+    def __init__(self, text: str, state: str = "", parent=None):
+        super().__init__(text, parent)
+        self.setProperty("chipState", state)
+        self.setStyleSheet(self._style_for(state))
+        self.setContentsMargins(8, 4, 8, 4)
+
+    @staticmethod
+    def _style_for(state: str) -> str:
+        base = (
+            "QLabel { font-weight: bold; font-size: 18px; "
+            "border: 2px solid palette(mid); border-radius: 4px; "
+            "padding: 4px 8px; }"
+        )
+        if state == "correct":
+            base = (
+                "QLabel { font-weight: bold; font-size: 18px; "
+                "border: 2px solid #2e7d32; border-radius: 4px; "
+                "padding: 4px 8px; background-color: rgba(46, 125, 50, 0.15); }"
+            )
+        elif state == "wrong":
+            base = (
+                "QLabel { font-weight: bold; font-size: 18px; "
+                "border: 2px solid #c62828; border-radius: 4px; "
+                "padding: 4px 8px; background-color: rgba(198, 40, 40, 0.15); }"
+            )
+        return base
 
 
-class KeyCombo(Horizontal):
-    def set_combo(self, combo: str | list[str], *, chip_class: str = "") -> None:
-        # Accept a single combo string OR a list of combos (chord sequence).
-        combos = [combo] if isinstance(combo, str) else list(combo)
-        self.remove_children()
-        widgets = []
-        for ci, single in enumerate(combos):
-            if ci > 0:
-                widgets.append(Static("→", classes="chord-separator"))
+class KeyCombo(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def set_combo(self, combo: str | list[str], chip_class: str = "") -> None:
+        self.clear()
+        if isinstance(combo, str):
+            seq = [combo]
+        else:
+            seq = combo
+        for i, part in enumerate(seq):
+            if i > 0:
+                arrow = QLabel("  then  ")
+                arrow.setStyleSheet("color: gray; font-size: 16px;")
+                self._layout.addWidget(arrow)
             try:
-                parts = prettify_combo(single)
+                tokens = prettify_combo(part)
             except ValueError:
-                parts = [single]
-            for i, part in enumerate(parts):
-                if i > 0:
-                    widgets.append(Static("+", classes="key-plus"))
-                chip = KeyChip(part)
-                if chip_class:
-                    chip.add_class(chip_class)
-                widgets.append(chip)
-        self.mount(*widgets)
+                tokens = [part]
+            for j, token in enumerate(tokens):
+                if j > 0:
+                    plus = QLabel("+")
+                    plus.setStyleSheet("color: gray; font-size: 16px;")
+                    self._layout.addWidget(plus)
+                chip = KeyChip(token, state=chip_class)
+                self._layout.addWidget(chip)
 
     def clear(self) -> None:
-        self.remove_children()
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
 
-class TextBufferDemo(Static):
-    """Animated demo of a text-edit shortcut. Cycles before <-> after every 1.5s.
+class TextBufferDemo(QLabel):
+    CYCLE_MS = 1500
 
-    The before/after strings encode the cursor with the '│' character.
-    """
-
-    CYCLE_INTERVAL_S = 1.5
-
-    def __init__(self, before: str, after: str, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self._before = before
-        self._after = after
+    def __init__(self, before: str, after: str, parent=None):
+        super().__init__(parent)
+        self._before = before.replace("│", "█")
+        self._after = after.replace("│", "█")
         self._showing_before = True
-        self._timer = None
-
-    def on_mount(self) -> None:
-        self._render_state()
-        self._timer = self.set_interval(self.CYCLE_INTERVAL_S, self._toggle)
-
-    def on_unmount(self) -> None:
-        if self._timer is not None:
-            self._timer.stop()
-            self._timer = None
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet(
+            "QLabel { font-family: monospace; font-size: 18px; "
+            "border: 1px solid palette(mid); border-radius: 4px; padding: 4px 8px; }"
+        )
+        self.setText(self._before)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._toggle)
+        self._timer.start(self.CYCLE_MS)
 
     def _toggle(self) -> None:
         self._showing_before = not self._showing_before
-        self._render_state()
-
-    def _render_state(self) -> None:
-        text = self._before if self._showing_before else self._after
-        # Render the cursor cell as inverted; everything else as plain.
-        rendered = ""
-        for char in text:
-            if char == "│":
-                rendered += "[reverse] [/reverse]"
-            else:
-                rendered += char
-        self.update(rendered)
+        self.setText(self._before if self._showing_before else self._after)
 
 
-class ConfirmSwapModal(ModalScreen[bool]):
-    BINDINGS = [
-        ("y,enter", "confirm", "Yes"),
-        ("n,escape", "cancel", "No"),
-    ]
-
-    DEFAULT_CSS = """
-    ConfirmSwapModal {
-        align: center middle;
-        background: black 40%;
-    }
-
-    #modal-content {
-        width: 64;
-        max-width: 90%;
-        height: auto;
-        padding: 1 2;
-        border: thick $accent;
-        background: $surface;
-    }
-
-    #modal-title {
-        text-style: bold;
-        color: $warning;
-        text-align: center;
-        margin-bottom: 1;
-    }
-
-    #modal-message {
-        text-align: center;
-        margin-bottom: 1;
-    }
-
-    #modal-buttons {
-        width: 100%;
-        height: 3;
-        align-horizontal: center;
-        margin-top: 1;
-    }
-
-    #modal-buttons Button {
-        margin: 0 1;
-    }
-    """
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="modal-content"):
-            yield Static("This pack uses your tmux prefix", id="modal-title")
-            yield Static(
-                "Continuing will disable your tmux prefix until you leave this pack. "
-                "tmux navigation (switching windows, sessions, panes) will not work.",
-                id="modal-message",
-            )
-            with Horizontal(id="modal-buttons"):
-                yield Button("Continue", id="confirm-btn", variant="primary")
-                yield Button("Cancel", id="cancel-btn")
-
-    def action_confirm(self) -> None:
-        self.dismiss(True)
-
-    def action_cancel(self) -> None:
-        self.dismiss(False)
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "confirm-btn":
-            self.dismiss(True)
-        elif event.button.id == "cancel-btn":
-            self.dismiss(False)
+HINT_BUTTON_STYLE = (
+    "QPushButton { color: gray; font-size: 12px; border: 1px solid palette(mid);"
+    " border-radius: 3px; padding: 3px 10px; background: transparent; }"
+    "QPushButton:hover { background: palette(mid); color: palette(text); }"
+)
 
 
-class HomeScreen(Screen):
-    BINDINGS = [
-        ("q", "app.quit", "Quit"),
-        ("p", "practice", "Practice"),
-        ("x", "toggle_pack", "Toggle pack"),
-        ("b", "browse", "Browse pack"),
-        ("s", "stats", "Stats"),
-        ("c", "settings", "Settings"),
-        ("d", "diagnostics", "Test keys"),
-    ]
+class HintBar(QWidget):
+    def __init__(self, hints=None, parent=None):
+        super().__init__(parent)
+        self._layout = QHBoxLayout(self)
+        self._layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._layout.setContentsMargins(0, 4, 0, 0)
+        self._layout.setSpacing(6)
+        if hints:
+            self.set_hints(hints)
 
-    def action_diagnostics(self) -> None:
-        self.app.push_screen(DiagnosticScreen())
+    def set_hints(self, hints):
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        if isinstance(hints, str):
+            label = QLabel(hints)
+            label.setStyleSheet("color: gray; font-size: 12px;")
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._layout.addWidget(label)
+            return
+        for key_label, action_label, callback in hints:
+            btn = QPushButton(f"{key_label}  {action_label}")
+            btn.setStyleSheet(HINT_BUTTON_STYLE)
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(callback)
+            self._layout.addWidget(btn)
 
-    def action_stats(self) -> None:
-        self.app.push_screen(StatsScreen(self._packs, self._storage))
 
-    def action_settings(self) -> None:
-        self.app.push_screen(SettingsScreen(self._storage))
+def _format_relative(td: timedelta) -> str:
+    seconds = int(td.total_seconds())
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h"
+    days = hours // 24
+    return f"{days}d"
 
-    def action_browse(self) -> None:
-        pack = self._highlighted_pack()
-        if pack is not None:
-            self.app.push_screen(BrowseScreen(pack, self._storage))
 
-    def __init__(self, packs: tuple[Pack, ...], storage: Storage) -> None:
+class PackCard(QWidget):
+    def __init__(self, pack: Pack, checked: bool, color: str, parent=None):
+        super().__init__(parent)
+        self.pack = pack
+        self.setStyleSheet(
+            f"PackCard {{ background: palette(base); border: 1px solid palette(mid);"
+            f" border-left: 4px solid {color}; border-radius: 4px; }}"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
+
+        header = QHBoxLayout()
+        header.setSpacing(8)
+        self._checkbox = QCheckBox()
+        self._checkbox.setChecked(checked)
+        self._checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        header.addWidget(self._checkbox)
+        self._name_label = QLabel(pack.name)
+        self._name_label.setStyleSheet(
+            f"font-weight: bold; color: {color}; font-size: 16px;"
+        )
+        header.addWidget(self._name_label)
+        header.addStretch()
+        layout.addLayout(header)
+
+        self._desc_label = QLabel(pack.description)
+        self._desc_label.setStyleSheet("color: gray; font-size: 13px;")
+        layout.addWidget(self._desc_label)
+
+        self._counts_label = QLabel()
+        self._counts_label.setStyleSheet("font-size: 13px;")
+        layout.addWidget(self._counts_label)
+
+    @property
+    def checked(self) -> bool:
+        return self._checkbox.isChecked()
+
+    @checked.setter
+    def checked(self, value: bool) -> None:
+        self._checkbox.setChecked(value)
+
+    def set_counts(self, text: str) -> None:
+        self._counts_label.setText(text)
+
+    def set_selected(self, selected: bool) -> None:
+        if selected:
+            self.setStyleSheet(self.styleSheet().replace("border: 1px", "border: 2px"))
+        else:
+            self.setStyleSheet(self.styleSheet().replace("border: 2px", "border: 1px"))
+
+
+class HomeScreen(QWidget):
+    def __init__(self, app: "KeypalApp"):
         super().__init__()
-        self._packs = packs
-        self._storage = storage
-        saved = storage.load_selected_packs()
+        self._app = app
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        content = QVBoxLayout()
+        content.setSpacing(10)
+        content.setContentsMargins(20, 20, 20, 20)
+
+        self._practice_btn = QPushButton("Practice")
+        self._practice_btn.setStyleSheet("font-size: 18px; padding: 8px;")
+        self._practice_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._practice_btn.clicked.connect(self._start_practice)
+        content.addWidget(self._practice_btn)
+
+        self._selected: set[str] = set()
+        saved = app.storage.load_selected_packs()
         if saved is None:
-            self._selected: set[str] = {p.id for p in packs}
+            self._selected = {p.id for p in app.packs}
         else:
-            self._selected = saved & {p.id for p in packs}
+            self._selected = saved & {p.id for p in app.packs}
 
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="home-content"):
-            yield Button("Practice", id="practice-btn", variant="primary")
-            yield ListView(
-                *(
-                    ListItem(
-                        Horizontal(
-                            self._pack_checkbox(pack),
-                            Static(pack.name, classes="pack-name"),
-                            classes="pack-header",
-                        ),
-                        Static(pack.description, classes="pack-desc"),
-                        Static(self._pack_counts(pack), classes="pack-summary"),
-                        id=f"pack-{pack.id}",
-                    )
-                    for pack in self._packs
-                )
+        self._cards: list[PackCard] = []
+        self._selected_index = 0
+        for pack in app.packs:
+            color = PACK_COLORS.get(pack.id, "gray")
+            card = PackCard(pack, pack.id in self._selected, color)
+            card.set_counts(self._pack_counts(pack))
+            card._checkbox.toggled.connect(self._on_checkbox_toggled)
+            card.mousePressEvent = lambda e, c=card, p=pack: self._on_card_clicked(
+                p, toggle=True
             )
-        yield Footer()
+            card.mouseDoubleClickEvent = lambda e, p=pack: self._start_quiz((p,))
+            self._cards.append(card)
+            content.addWidget(card)
 
-    def _pack_checkbox(self, pack: Pack) -> Checkbox:
-        cb = Checkbox("", value=pack.id in self._selected, id=f"check-{pack.id}")
-        cb.can_focus = False
-        return cb
+        self._update_selection_highlight()
 
-    def on_key(self, event: events.Key) -> None:
-        if isinstance(self.focused, Button):
-            lv = self.query_one(ListView)
-            if event.key == "down":
-                lv.index = 0
-                lv.focus()
-                event.stop()
-            elif event.key == "up":
-                lv.index = len(lv) - 1
-                lv.focus()
-                event.stop()
-            return
-        if isinstance(self.focused, ListView):
-            lv = self.query_one(ListView)
-            if event.key == "up" and lv.index == 0:
-                self.query_one("#practice-btn", Button).focus()
-                event.stop()
-            elif event.key == "down" and lv.index == len(lv) - 1:
-                self.query_one("#practice-btn", Button).focus()
-                event.stop()
+        content.addWidget(
+            HintBar(
+                [
+                    ("P", "Practice", self._start_practice),
+                    ("B", "Browse", self._browse_highlighted),
+                    (
+                        "S",
+                        "Stats",
+                        lambda: self._app.push_screen(
+                            StatsScreen(self._app, self._app.packs, self._app.storage)
+                        ),
+                    ),
+                    (
+                        "C",
+                        "Settings",
+                        lambda: self._app.push_screen(
+                            SettingsScreen(self._app, self._app.storage)
+                        ),
+                    ),
+                    (
+                        "D",
+                        "Diagnostic",
+                        lambda: self._app.push_screen(DiagnosticScreen(self._app)),
+                    ),
+                    ("Q", "Quit", self._app.close),
+                ]
+            )
+        )
 
-    def on_screen_resume(self) -> None:
-        for pack in self._packs:
-            label = self.query_one(f"#pack-{pack.id} .pack-summary", Static)
-            label.update(self._pack_counts(pack))
+        layout.addLayout(content)
 
-    def _highlighted_pack(self) -> Pack | None:
-        list_view = self.query_one(ListView)
-        item = list_view.highlighted_child
-        if item is None or item.id is None:
-            return None
-        prefix = "pack-"
-        if not item.id.startswith(prefix):
-            return None
-        pack_id = item.id[len(prefix) :]
-        return next((p for p in self._packs if p.id == pack_id), None)
+    def on_resume(self) -> None:
+        for card in self._cards:
+            card.set_counts(self._pack_counts(card.pack))
 
-    def action_toggle_pack(self) -> None:
-        pack = self._highlighted_pack()
-        if pack is None:
-            return
-        checkbox = self.query_one(f"#check-{pack.id}", Checkbox)
-        checkbox.value = not checkbox.value
+    def _update_selection_highlight(self) -> None:
+        for i, card in enumerate(self._cards):
+            card.set_selected(i == self._selected_index)
 
-    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
-        prefix = "check-"
-        if event.checkbox.id is None or not event.checkbox.id.startswith(prefix):
-            return
-        pack_id = event.checkbox.id[len(prefix) :]
-        if event.value:
-            self._selected.add(pack_id)
-        else:
-            self._selected.discard(pack_id)
-        self._storage.save_selected_packs(self._selected)
+    def _on_card_clicked(self, pack: Pack, *, toggle: bool = False) -> None:
+        for i, card in enumerate(self._cards):
+            if card.pack.id == pack.id:
+                self._selected_index = i
+                if toggle:
+                    card._checkbox.toggle()
+                break
+        self._update_selection_highlight()
+
+    def _on_checkbox_toggled(self, checked: bool) -> None:
+        self._selected = set()
+        for card in self._cards:
+            if card.checked:
+                self._selected.add(card.pack.id)
+        self._app.storage.save_selected_packs(self._selected)
 
     def _pack_counts(self, pack: Pack) -> str:
-        cards = self._storage.load_cards()
-        disabled = self._storage.load_disabled()
+        cards = self._app.storage.load_cards()
+        disabled = self._app.storage.load_disabled()
         now = datetime.now(timezone.utc)
         due = 0
         new = 0
-        shared_known = (
-            0  # shortcut shared with another pack and already practiced (not due)
-        )
+        shared_known = 0
         upcoming: list[datetime] = []
         for shortcut in pack.shortcuts:
             sid = pack.shortcut_id(shortcut)
@@ -723,7 +364,7 @@ class HomeScreen(Screen):
                     shared_known += 1
         if due == 0 and new == 0 and shared_known == 0:
             if upcoming:
-                return f"all caught up · next due in {_format_relative(min(upcoming) - now)}"
+                return f"all caught up - next due in {_format_relative(min(upcoming) - now)}"
             return "all caught up"
         parts = []
         if due:
@@ -732,31 +373,23 @@ class HomeScreen(Screen):
             parts.append(f"{new} new")
         if shared_known:
             parts.append(f"{shared_known} shared")
-        return " · ".join(parts)
+        return " | ".join(parts)
 
-    def action_practice(self) -> None:
-        selected = tuple(p for p in self._packs if p.id in self._selected)
+    def _highlighted_pack(self) -> Pack | None:
+        if 0 <= self._selected_index < len(self._cards):
+            return self._cards[self._selected_index].pack
+        return None
+
+    def _start_practice(self) -> None:
+        selected = tuple(p for p in self._app.packs if p.id in self._selected)
         if selected:
             self._start_quiz(selected)
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "practice-btn":
-            self.action_practice()
-
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        prefix = "pack-"
-        if event.item.id is None or not event.item.id.startswith(prefix):
-            return
-        pack_id = event.item.id[len(prefix) :]
-        pack = next((p for p in self._packs if p.id == pack_id), None)
-        if pack is not None:
-            self._start_quiz((pack,))
-
     def _start_quiz(self, packs: tuple[Pack, ...]) -> None:
-        settings = self.app.settings
-        cards = self._storage.load_cards()
-        disabled = self._storage.load_disabled()
-        seen = self._storage.load_seen()
+        settings = self._app.settings
+        cards = self._app.storage.load_cards()
+        disabled = self._app.storage.load_disabled()
+        seen = self._app.storage.load_seen()
         session = select_multi_session(
             packs,
             cards,
@@ -765,390 +398,63 @@ class HomeScreen(Screen):
             new_per_session=settings.new_per_session,
         )
         if not session:
-            self.app.notify("All caught up -- nothing to practice right now")
+            QMessageBox.information(
+                self, "keypal", "All caught up -- nothing to practice right now"
+            )
             return
-        if self._any_needs_prefix_swap(packs):
+        self._app.push_screen(QuizScreen(self._app, packs, self._app.storage))
 
-            def handle_response(confirmed: bool | None) -> None:
-                if confirmed:
-                    self.app.tmux_swap.activate()
-                    self.app.push_screen(QuizScreen(packs, self._storage))
+    def _browse_highlighted(self) -> None:
+        pack = self._highlighted_pack()
+        if pack:
+            self._app.push_screen(BrowseScreen(self._app, pack, self._app.storage))
 
-            self.app.push_screen(ConfirmSwapModal(), handle_response)
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        key = event.key()
+        if key == Qt.Key.Key_Q:
+            self._app.close()
+        elif key == Qt.Key.Key_P:
+            self._start_practice()
+        elif key == Qt.Key.Key_X:
+            card = self._cards[self._selected_index] if self._cards else None
+            if card:
+                card.checked = not card.checked
+        elif key == Qt.Key.Key_B:
+            self._browse_highlighted()
+        elif key == Qt.Key.Key_S:
+            self._app.push_screen(
+                StatsScreen(self._app, self._app.packs, self._app.storage)
+            )
+        elif key == Qt.Key.Key_C:
+            self._app.push_screen(SettingsScreen(self._app, self._app.storage))
+        elif key == Qt.Key.Key_D:
+            self._app.push_screen(DiagnosticScreen(self._app))
+        elif key == Qt.Key.Key_Up:
+            if self._selected_index > 0:
+                self._selected_index -= 1
+                self._update_selection_highlight()
+        elif key == Qt.Key.Key_Down:
+            if self._selected_index < len(self._cards) - 1:
+                self._selected_index += 1
+                self._update_selection_highlight()
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._start_practice()
         else:
-            self.app.push_screen(QuizScreen(packs, self._storage))
-
-    def _any_needs_prefix_swap(self, packs: tuple[Pack, ...]) -> bool:
-        if not inside_tmux():
-            return False
-        user_prefix = current_tmux_prefix()
-        if user_prefix is None:
-            return False
-        for pack in packs:
-            if not pack.prefix:
-                continue
-            try:
-                if normalize(user_prefix) == normalize(pack.prefix):
-                    return True
-            except ValueError:
-                continue
-        return False
+            super().keyPressEvent(event)
 
 
-class BrowseScreen(Screen):
-    BINDINGS = [
-        ("escape", "app.pop_screen", "Back"),
-        ("f4", "toggle_disabled", "Toggle skip"),
-    ]
-
-    def __init__(self, pack: Pack, storage: Storage) -> None:
-        super().__init__()
-        self._pack = pack
-        self._storage = storage
-        self._disabled: set[str] = storage.load_disabled()
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with VerticalScroll(id="browse-content"):
-            yield Static(self._pack.name, id="browse-title")
-            yield Static(self._pack.description, id="browse-desc")
-            if self._pack.prefix:
-                pretty = "+".join(prettify_combo(self._pack.prefix))
-                yield Static(
-                    f"All shortcuts shown after prefix [b]{pretty}[/]",
-                    id="browse-prefix",
-                )
-            yield ListView(
-                *(
-                    ListItem(
-                        Static(self._browse_label(shortcut)),
-                        id=f"shortcut-{i}",
-                    )
-                    for i, shortcut in enumerate(self._pack.shortcuts)
-                ),
-                id="browse-list",
-            )
-            yield Static(
-                "Enter to practice · F4 to toggle skip · Esc to go back",
-                id="browse-hint",
-            )
-        yield Footer()
-
-    def on_mount(self) -> None:
-        self.query_one("#browse-list", ListView).focus()
-
-    def _browse_label(self, shortcut: Shortcut) -> str:
-        action = shortcut.action
-        keys = "  /  ".join("+".join(prettify_combo(k)) for k in shortcut.keys)
-        sid = self._pack.shortcut_id(shortcut)
-        skipped = "  [$text-muted i](skipped)[/]" if sid in self._disabled else ""
-        shared = ""
-        if shortcut.shared_id and not shortcut.shared_id.startswith(
-            f"{self._pack.id}:"
-        ):
-            ns = shortcut.shared_id.split(":", 1)[0]
-            shared = f"  [$text-muted i](common with {ns})[/]"
-        return f"{action:<42}  [b $primary]{keys}[/]{shared}{skipped}"
-
-    def _highlighted_shortcut(self) -> tuple[int, Shortcut] | None:
-        lv = self.query_one("#browse-list", ListView)
-        item = lv.highlighted_child
-        if item is None or item.id is None:
-            return None
-        prefix = "shortcut-"
-        if not item.id.startswith(prefix):
-            return None
-        idx = int(item.id[len(prefix) :])
-        return idx, self._pack.shortcuts[idx]
-
-    def action_toggle_disabled(self) -> None:
-        result = self._highlighted_shortcut()
-        if result is None:
-            return
-        idx, shortcut = result
-        sid = self._pack.shortcut_id(shortcut)
-        if sid in self._disabled:
-            self._disabled.discard(sid)
-        else:
-            self._disabled.add(sid)
-        self._storage.save_disabled(self._disabled)
-        item = self.query_one(f"#shortcut-{idx}", ListItem)
-        item.query_one(Static).update(self._browse_label(shortcut))
-
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        prefix = "shortcut-"
-        if event.item.id is None or not event.item.id.startswith(prefix):
-            return
-        idx = int(event.item.id[len(prefix) :])
-        shortcut = self._pack.shortcuts[idx]
-        self.app.push_screen(QuizScreen((self._pack,), self._storage, force=[shortcut]))
-
-
-class DiagnosticScreen(Screen):
-    BINDINGS = [("escape", "app.pop_screen", "Back")]
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="quiz-content"):
-            yield Static("", id="progress")
-            yield Static("Press any key combo", id="prompt")
-            yield KeyCombo(id="your-combo")
-            yield Static("", id="verdict")
-            yield Static("", id="expected-label")
-            yield KeyCombo(id="expected-combo")
-            yield Static("Esc to return", id="hint")
-        yield Footer()
-
-    def on_key(self, event: events.Key) -> None:
-        if event.key == "escape":
-            return  # let binding handle
-        event.stop()
-        verdict = self.query_one("#verdict", Static)
-        verdict.update(f"Textual saw: {event.key!r}")
-        your_combo = self.query_one("#your-combo", KeyCombo)
-        try:
-            your_combo.set_combo(event.key)
-        except ValueError:
-            your_combo.clear()
-
-
-class StatsScreen(Screen):
-    BINDINGS = [("escape", "app.pop_screen", "Back")]
-
-    def __init__(self, packs: tuple[Pack, ...], storage: Storage) -> None:
-        super().__init__()
-        self._packs = packs
-        self._storage = storage
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="stats-content"):
-            yield Static("Stats", id="stats-title")
-            yield Static(self._render_stats(), id="stats-body")
-        yield Footer()
-
-    def _render_stats(self) -> str:
-        cards = self._storage.load_cards()
-        disabled = self._storage.load_disabled()
-        review_count = sum(1 for _ in self._storage.read_reviews())
-        now = datetime.now(timezone.utc)
-
-        state_counts = {state: 0 for state in State}
-        for card in cards.values():
-            state_counts[card.state] = state_counts.get(card.state, 0) + 1
-
-        pack_lines = []
-        for pack in self._packs:
-            active_ids = [
-                pack.shortcut_id(s)
-                for s in pack.shortcuts
-                if pack.shortcut_id(s) not in disabled
-            ]
-            tracked = len(set(active_ids) & cards.keys())
-            due = sum(
-                1
-                for sid in active_ids
-                if (card := cards.get(sid)) is not None
-                and (card.due is None or card.due <= now)
-            )
-            total = len(active_ids)
-            skipped = len(pack.shortcuts) - total
-            line = f"  {pack.name}: {tracked}/{total} tracked, {due} due"
-            if skipped:
-                line += f" ({skipped} skipped)"
-            pack_lines.append(line)
-
-        lines = [
-            f"Reviews completed: {review_count}",
-            "",
-            "Cards by state:",
-            *[f"  {state.name}: {state_counts.get(state, 0)}" for state in State],
-            "",
-            "Per pack:",
-            *pack_lines,
-        ]
-        return "\n".join(lines)
-
-
-SETTING_FIELDS = [
-    (
-        "new_per_session",
-        "New cards per session",
-        "How many new shortcuts to introduce each session",
-    ),
-    (
-        "auto_advance_secs",
-        "Auto-advance delay (seconds)",
-        "Seconds to wait before advancing after a correct answer",
-    ),
-]
-
-THRESHOLD_FIELDS = [
-    (
-        "fast_ms",
-        "Fast threshold (ms)",
-        "Correct answers faster than this are rated Easy",
-    ),
-    (
-        "slow_ms",
-        "Slow threshold (ms)",
-        "Correct answers slower than this are rated Hard",
-    ),
-]
-
-
-class SettingsScreen(Screen):
-    BINDINGS = [("escape", "app.pop_screen", "Back")]
-
-    def __init__(self, storage: Storage) -> None:
-        super().__init__()
-        self._storage = storage
-        self._settings = storage.load_settings()
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="settings-content"):
-            yield Static("Settings", id="settings-title")
-            for field_name, label, desc in SETTING_FIELDS:
-                with Vertical(classes="setting-row"):
-                    yield Static(label, classes="setting-label")
-                    yield Static(desc, classes="setting-desc")
-                    yield Input(
-                        str(getattr(self._settings, field_name)),
-                        id=f"setting-{field_name}",
-                    )
-            with Vertical(classes="setting-row"):
-                yield Checkbox(
-                    "Auto-adjust thresholds based on my timing",
-                    value=self._settings.auto_adjust_thresholds,
-                    id="auto-adjust-check",
-                )
-                yield Static(
-                    "Adapts Easy/Hard cutoffs to your speed as you practice",
-                    classes="setting-desc",
-                )
-            for field_name, label, desc in THRESHOLD_FIELDS:
-                with Vertical(classes="setting-row"):
-                    yield Static(label, classes="setting-label")
-                    yield Static(desc, classes="setting-desc")
-                    yield Input(
-                        str(getattr(self._settings, field_name)),
-                        id=f"setting-{field_name}",
-                        disabled=self._settings.auto_adjust_thresholds,
-                    )
-            with Horizontal(id="settings-buttons"):
-                yield Button("Save", id="save-btn", variant="primary")
-                yield Button("Reset to defaults", id="reset-btn")
-            yield Static(f"Stored in {self._storage.settings_path}", id="settings-path")
-        yield Footer()
-
-    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
-        if event.checkbox.id != "auto-adjust-check":
-            return
-        auto = event.value
-        for field_name, _, _ in THRESHOLD_FIELDS:
-            self.query_one(f"#setting-{field_name}", Input).disabled = auto
-
-    def _focusable_widgets(self):
-        order = [
-            self.query_one("#setting-new_per_session", Input),
-            self.query_one("#setting-auto_advance_secs", Input),
-            self.query_one("#auto-adjust-check", Checkbox),
-            self.query_one("#setting-fast_ms", Input),
-            self.query_one("#setting-slow_ms", Input),
-            self.query_one("#save-btn", Button),
-            self.query_one("#reset-btn", Button),
-        ]
-        return [w for w in order if not (isinstance(w, Input) and w.disabled)]
-
-    def on_key(self, event: events.Key) -> None:
-        focused = self.focused
-        if focused is None:
-            return
-        if event.key in ("up", "down"):
-            widgets = self._focusable_widgets()
-            if focused not in widgets:
-                return
-            idx = widgets.index(focused)
-            if event.key == "up" and idx > 0:
-                widgets[idx - 1].focus()
-                event.stop()
-            elif event.key == "down" and idx < len(widgets) - 1:
-                widgets[idx + 1].focus()
-                event.stop()
-        elif event.key in ("left", "right") and isinstance(focused, Button):
-            buttons = [
-                self.query_one("#save-btn", Button),
-                self.query_one("#reset-btn", Button),
-            ]
-            if focused not in buttons:
-                return
-            idx = buttons.index(focused)
-            if event.key == "left" and idx > 0:
-                buttons[idx - 1].focus()
-                event.stop()
-            elif event.key == "right" and idx < len(buttons) - 1:
-                buttons[idx + 1].focus()
-                event.stop()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "save-btn":
-            self._save()
-        elif event.button.id == "reset-btn":
-            self._reset()
-
-    def _save(self) -> None:
-        try:
-            kwargs = {}
-            for field_name, _, _ in SETTING_FIELDS + THRESHOLD_FIELDS:
-                raw = self.query_one(f"#setting-{field_name}", Input).value
-                if field_name == "auto_advance_secs":
-                    kwargs[field_name] = float(raw)
-                else:
-                    kwargs[field_name] = int(raw)
-            auto_adjust = self.query_one("#auto-adjust-check", Checkbox).value
-            kwargs["auto_adjust_thresholds"] = auto_adjust
-            settings = Settings(**kwargs)
-        except ValueError, TypeError:
-            self.app.notify(
-                "Invalid input -- all values must be numbers", severity="error"
-            )
-            return
-        self._settings = settings
-        self._storage.save_settings(settings)
-        self.app.settings = settings
-        self.app.notify("Settings saved")
-
-    def _reset(self) -> None:
-        self._settings = Settings()
-        self._storage.save_settings(self._settings)
-        self.app.settings = self._settings
-        for field_name, _, _ in SETTING_FIELDS + THRESHOLD_FIELDS:
-            inp = self.query_one(f"#setting-{field_name}", Input)
-            inp.value = str(getattr(self._settings, field_name))
-            if field_name in ("fast_ms", "slow_ms"):
-                inp.disabled = self._settings.auto_adjust_thresholds
-        self.query_one(
-            "#auto-adjust-check", Checkbox
-        ).value = self._settings.auto_adjust_thresholds
-        self.app.notify("Settings reset to defaults")
-
-
-class QuizScreen(Screen):
-    BINDINGS = [
-        ("escape", "app.pop_screen", "Back to home"),
-        ("f4", "dismiss_card", "Skip forever"),
-    ]
-
+class QuizScreen(QWidget):
     DOT_CHAR = "●"
 
     def __init__(
         self,
+        app: "KeypalApp",
         packs: tuple[Pack, ...],
         storage: Storage,
         force: list[Shortcut] | None = None,
-    ) -> None:
+    ):
         super().__init__()
+        self._app = app
         self._packs = packs
         self._storage = storage
         self._settings = storage.load_settings()
@@ -1157,6 +463,8 @@ class QuizScreen(Screen):
         self._disabled: set[str] = storage.load_disabled()
         self._seen: set[str] = storage.load_seen()
         self._thresholds = self._compute_thresholds()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
         if force is not None:
             self._session = [(s, packs[0]) for s in force]
         else:
@@ -1175,10 +483,64 @@ class QuizScreen(Screen):
         self._chord_buffer: list[str] = []
         self._pending_elapsed_ms: int = 0
         self._auto_advance_step = 0
-        self._auto_advance_timer = None
+        self._auto_advance_timer: QTimer | None = None
         auto_secs = self._settings.auto_advance_secs
-        self._auto_advance_interval = auto_secs / 4
+        self._auto_advance_interval_ms = int(auto_secs / 4 * 1000)
         self._auto_advance_ticks = 4
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(8)
+
+        self._progress = QLabel()
+        self._progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._progress.setStyleSheet("color: gray;")
+        layout.addWidget(self._progress)
+
+        self._pack_label = QLabel()
+        self._pack_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._pack_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self._pack_label)
+
+        self._prompt = QLabel()
+        self._prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._prompt.setStyleSheet("font-size: 20px; font-weight: bold;")
+        layout.addWidget(self._prompt)
+
+        self._your_combo = KeyCombo()
+        layout.addWidget(self._your_combo)
+
+        self._verdict = QLabel()
+        self._verdict.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._verdict.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(self._verdict)
+
+        self._dots = QLabel()
+        self._dots.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._dots.setStyleSheet("font-size: 18px;")
+        layout.addWidget(self._dots)
+
+        self._expected_label = QLabel()
+        self._expected_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._expected_label.setStyleSheet("color: gray;")
+        layout.addWidget(self._expected_label)
+
+        self._expected_combo = KeyCombo()
+        layout.addWidget(self._expected_combo)
+
+        self._demo_label = QLabel()
+        self._demo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._demo_label.setStyleSheet("color: gray;")
+        layout.addWidget(self._demo_label)
+
+        self._demo_container = QHBoxLayout()
+        self._demo_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addLayout(self._demo_container)
+
+        self._hint = HintBar()
+        layout.addWidget(self._hint)
+
+        self._begin_card()
 
     def _compute_thresholds(self) -> Thresholds:
         fixed = Thresholds(
@@ -1210,42 +572,6 @@ class QuizScreen(Screen):
             return matches(key, [pack.prefix], self._aliases)
         return matches(key, shortcut.keys, self._aliases)
 
-    def _evaluate_chord(
-        self, buffer: list[str], shortcut: Shortcut, pack: Pack
-    ) -> bool:
-        if len(buffer) != self._expected_chord_length(pack):
-            return False
-        return all(
-            self._match_position(i, key, shortcut, pack) for i, key in enumerate(buffer)
-        )
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="quiz-content"):
-            yield Static("", id="progress")
-            yield Static("", id="pack-label")
-            yield Static("", id="prompt")
-            yield KeyCombo(id="your-combo")
-            yield Static("", id="verdict")
-            with Horizontal(id="auto-advance-dots"):
-                yield Static("", id="dot-1", classes="dot")
-                yield Static("", id="dot-2", classes="dot")
-                yield Static("", id="dot-3", classes="dot")
-            yield Static("", id="expected-label")
-            yield KeyCombo(id="expected-combo")
-            yield Static("", id="demo-label")
-            yield Horizontal(id="demo-row")
-            yield Static("", id="hint")
-        yield Footer()
-
-    def on_mount(self) -> None:
-        self._begin_card()
-
-    def on_unmount(self) -> None:
-        self._cancel_auto_advance()
-        # Restore tmux prefix if it was swapped to enter this pack.
-        self.app.tmux_swap.deactivate()
-
     def _current(self) -> tuple[Shortcut, Pack] | None:
         if self._index >= len(self._session):
             return None
@@ -1263,9 +589,9 @@ class QuizScreen(Screen):
     def _start_auto_advance(self) -> None:
         self._cancel_auto_advance()
         self._auto_advance_step = 0
-        self._auto_advance_timer = self.set_interval(
-            self._auto_advance_interval, self._tick_auto_advance
-        )
+        self._auto_advance_timer = QTimer(self)
+        self._auto_advance_timer.timeout.connect(self._tick_auto_advance)
+        self._auto_advance_timer.start(self._auto_advance_interval_ms)
 
     def _cancel_auto_advance(self) -> None:
         if self._auto_advance_timer is not None:
@@ -1279,142 +605,158 @@ class QuizScreen(Screen):
             self._cancel_auto_advance()
             self._finalize(correct=True)
         else:
-            # Only update the dots; don't re-render the whole state (would destroy
-            # and remount the demo widget every tick, killing its animation cycle).
-            for i in (1, 2, 3):
-                cell = self.query_one(f"#dot-{i}", Static)
-                cell.update(self.DOT_CHAR if self._auto_advance_step >= i else "")
+            self._dots.setText(
+                " ".join(
+                    self.DOT_CHAR if i < self._auto_advance_step else "○"
+                    for i in range(3)
+                )
+            )
 
     def _render_state(self) -> None:
         current = self._current()
-        progress = self.query_one("#progress", Static)
-        pack_label = self.query_one("#pack-label", Static)
-        prompt = self.query_one("#prompt", Static)
-        your_combo = self.query_one("#your-combo", KeyCombo)
-        verdict = self.query_one("#verdict", Static)
-        expected_label = self.query_one("#expected-label", Static)
-        expected_combo = self.query_one("#expected-combo", KeyCombo)
-        hint = self.query_one("#hint", Static)
-
-        your_combo.clear()
-        expected_combo.clear()
-        expected_label.update("")
-        verdict.update("")
-        verdict.remove_class("correct")
-        verdict.remove_class("wrong")
-        for i in (1, 2, 3):
-            self.query_one(f"#dot-{i}", Static).update("")
-        demo_label = self.query_one("#demo-label", Static)
-        demo_row = self.query_one("#demo-row", Horizontal)
-        demo_label.update("")
-        demo_row.remove_children()
+        self._your_combo.clear()
+        self._expected_combo.clear()
+        self._expected_label.setText("")
+        self._verdict.setText("")
+        self._verdict.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self._dots.setText("")
+        self._demo_label.setText("")
+        while self._demo_container.count():
+            item = self._demo_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
 
         if current is None:
-            progress.update("")
-            pack_label.update("")
-            prompt.update("Session complete")
-            hint.update("Press Enter to return home")
+            self._progress.setText("")
+            self._pack_label.setText("")
+            self._prompt.setText("Session complete")
+            self._hint.set_hints(
+                [
+                    ("Enter", "Return Home", self._app.pop_screen),
+                ]
+            )
             return
 
         shortcut, pack = current
-        progress.update(f"{self._index + 1} / {len(self._session)}")
-        if len(self._packs) > 1:
-            color = PACK_COLORS.get(pack.id, "white")
-            pack_label.update(f"[bold reverse {color}] {pack.name} [/]")
-        else:
-            pack_label.update("")
+        self._progress.setText(f"{self._index + 1} / {len(self._session)}")
+        color = PACK_COLORS.get(pack.id, "gray")
+        self._pack_label.setText(pack.name)
+        self._pack_label.setStyleSheet(f"font-weight: bold; color: {color};")
+
         prompt_text = shortcut.action
         if shortcut.shared_id and not shortcut.shared_id.startswith(f"{pack.id}:"):
             ns = shortcut.shared_id.split(":", 1)[0]
-            prompt_text += f"  [$text-muted i](shared with {ns})[/]"
-        prompt.update(prompt_text)
+            prompt_text += f"  (shared with {ns})"
+        self._prompt.setText(prompt_text)
 
         if self._state is QuizState.ASKING:
             if self._chord_buffer:
-                your_combo.set_combo(list(self._chord_buffer))
-                hint.update("Now press the next key...")
+                self._your_combo.set_combo(list(self._chord_buffer))
+                self._hint.set_hints("Now press the next key...")
             else:
-                hint.update(
-                    "Press the shortcut · Space if you don't know · F4 to skip forever"
+                self._hint.set_hints(
+                    [
+                        ("Space", "Don't Know", self._give_up),
+                        ("F4", "Skip Forever", self._action_dismiss_card),
+                    ]
                 )
             return
 
         expected_seq = self._expected_seq(shortcut, pack)
 
         if self._state is QuizState.CORRECT_DONE:
-            your_combo.set_combo(expected_seq, chip_class="correct")
-            verdict.update("Correct")
-            verdict.add_class("correct")
-            for i in (1, 2, 3):
-                cell = self.query_one(f"#dot-{i}", Static)
-                cell.update(self.DOT_CHAR if self._auto_advance_step >= i else "")
-            if shortcut.demo_before and shortcut.demo_after:
-                demo_label.update("What it does:")
-                demo_row.mount(
-                    TextBufferDemo(shortcut.demo_before, shortcut.demo_after)
+            self._your_combo.set_combo(expected_seq, chip_class="correct")
+            self._verdict.setText("Correct")
+            self._verdict.setStyleSheet(
+                "font-size: 18px; font-weight: bold; color: #2e7d32;"
+            )
+            self._dots.setText(
+                " ".join(
+                    self.DOT_CHAR if i < self._auto_advance_step else "○"
+                    for i in range(3)
                 )
-            hint.update("Press Enter to continue · F4 to skip forever")
+            )
+            if shortcut.demo_before and shortcut.demo_after:
+                self._demo_label.setText("What it does:")
+                demo = TextBufferDemo(shortcut.demo_before, shortcut.demo_after)
+                self._demo_container.addWidget(demo)
+            self._hint.set_hints(
+                [
+                    ("Enter", "Continue", self._accept_correct),
+                    ("F4", "Skip Forever", self._action_dismiss_card),
+                ]
+            )
             return
 
         # WRONG_PRACTICE
-        verdict.update("Wrong" if self._last_pressed_seq else "Don't know")
-        verdict.add_class("wrong")
-        expected_label.update("Try this:")
-        expected_combo.set_combo(expected_seq, chip_class="correct")
+        self._verdict.setText("Wrong" if self._last_pressed_seq else "Don't know")
+        self._verdict.setStyleSheet(
+            "font-size: 18px; font-weight: bold; color: #c62828;"
+        )
+        self._expected_label.setText("Try this:")
+        self._expected_combo.set_combo(expected_seq, chip_class="correct")
         if shortcut.demo_before and shortcut.demo_after:
-            demo_label.update("What it does:")
-            demo_row.mount(TextBufferDemo(shortcut.demo_before, shortcut.demo_after))
+            self._demo_label.setText("What it does:")
+            demo = TextBufferDemo(shortcut.demo_before, shortcut.demo_after)
+            self._demo_container.addWidget(demo)
         if self._chord_buffer:
-            your_combo.set_combo(list(self._chord_buffer))
-            hint.update("Now press the next key...")
+            self._your_combo.set_combo(list(self._chord_buffer))
+            self._hint.set_hints("Now press the next key...")
         else:
             if self._last_pressed_seq:
-                your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
-            hint.update("Y if you had it · Enter to skip once · F4 to skip forever")
+                self._your_combo.set_combo(self._last_pressed_seq, chip_class="wrong")
+            self._hint.set_hints(
+                [
+                    ("Y", "Had It", self._claim_correct),
+                    ("Enter", "Skip", self._skip_once),
+                    ("F4", "Skip Forever", self._action_dismiss_card),
+                ]
+            )
 
-    def on_key(self, event: events.Key) -> None:
-        if event.key == "escape":
-            return  # let binding handle
-        if event.key == "f4":
-            # Handled here too because our state-machine handlers consume keypresses
-            # before the screen-level binding system gets a chance to fire.
-            event.stop()
-            self.action_dismiss_card()
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.isAutoRepeat():
             return
+        combo = qt_event_to_combo(event)
+        key = event.key()
+        if key == Qt.Key.Key_Escape:
+            self._cancel_auto_advance()
+            self._app.pop_screen()
+            return
+        if key == Qt.Key.Key_F4:
+            self._action_dismiss_card()
+            return
+
+        if combo is None:
+            return
+
         if self._current() is None:
-            # Session complete: Enter returns home.
-            if event.key == "enter":
-                event.stop()
-                self.app.pop_screen()
+            if key == Qt.Key.Key_Return or key == Qt.Key.Key_Enter:
+                self._app.pop_screen()
             return
 
         if self._state is QuizState.ASKING:
-            self._handle_asking(event)
+            self._handle_asking(combo, event)
         elif self._state is QuizState.CORRECT_DONE:
-            self._handle_correct_done(event)
+            self._handle_correct_done(combo, event)
         else:
-            self._handle_wrong_practice(event)
+            self._handle_wrong_practice(combo, event)
 
-    def _handle_asking(self, event: events.Key) -> None:
-        event.stop()
+    def _handle_asking(self, combo: str, event: QKeyEvent) -> None:
         current = self._current()
         assert current is not None
         shortcut, pack = current
 
-        if event.key == "space" and not self._chord_buffer:
-            self._pending_elapsed_ms = self._elapsed_ms()
-            self._last_pressed_seq = []
-            self._state = QuizState.WRONG_PRACTICE
-            self._render_state()
+        if event.key() == Qt.Key.Key_Space and not self._chord_buffer:
+            self._give_up()
             return
 
         if self._first_key_ns is None:
             self._first_key_ns = time.monotonic_ns()
 
-        self._chord_buffer.append(event.key)
+        self._chord_buffer.append(combo)
 
         position = len(self._chord_buffer) - 1
-        if not self._match_position(position, event.key, shortcut, pack):
+        if not self._match_position(position, combo, shortcut, pack):
             self._pending_elapsed_ms = self._elapsed_ms()
             self._last_pressed_seq = list(self._chord_buffer)
             self._chord_buffer = []
@@ -1433,34 +775,30 @@ class QuizScreen(Screen):
         self._start_auto_advance()
         self._render_state()
 
-    def _handle_correct_done(self, event: events.Key) -> None:
-        if event.key == "enter":
-            event.stop()
-            self._cancel_auto_advance()
-            self._finalize(correct=True)
+    def _handle_correct_done(self, combo: str, event: QKeyEvent) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._accept_correct()
 
-    def _handle_wrong_practice(self, event: events.Key) -> None:
+    def _handle_wrong_practice(self, combo: str, event: QKeyEvent) -> None:
         current = self._current()
         assert current is not None
         shortcut, pack = current
 
-        if not self._chord_buffer and event.key == "y":
-            event.stop()
-            self._remember_alias_seq(
-                self._last_pressed_seq, self._expected_seq(shortcut, pack)
-            )
-            self._finalize(correct=True)
+        if not self._chord_buffer and event.key() == Qt.Key.Key_Y:
+            self._claim_correct()
             return
 
-        if not self._chord_buffer and event.key == "enter":
-            event.stop()
-            self._finalize(correct=False)
+        if not self._chord_buffer and event.key() in (
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+        ):
+            self._skip_once()
             return
 
-        self._chord_buffer.append(event.key)
+        self._chord_buffer.append(combo)
 
         position = len(self._chord_buffer) - 1
-        if not self._match_position(position, event.key, shortcut, pack):
+        if not self._match_position(position, combo, shortcut, pack):
             self._last_pressed_seq = list(self._chord_buffer)
             self._chord_buffer = []
             self._render_state()
@@ -1470,7 +808,6 @@ class QuizScreen(Screen):
             self._render_state()
             return
 
-        event.stop()
         self._chord_buffer = []
         self._finalize(correct=False)
 
@@ -1478,7 +815,7 @@ class QuizScreen(Screen):
         self, pressed_seq: list[str], expected_seq: list[str]
     ) -> None:
         if not pressed_seq or len(pressed_seq) != len(expected_seq):
-            return  # nothing to alias, or length mismatch
+            return
         changed = False
         for actual, expected in zip(pressed_seq, expected_seq):
             try:
@@ -1542,7 +879,30 @@ class QuizScreen(Screen):
             self._seen.add(pack_sid)
             self._storage.save_seen(self._seen)
 
-    def action_dismiss_card(self) -> None:
+    def _give_up(self) -> None:
+        self._pending_elapsed_ms = self._elapsed_ms()
+        self._last_pressed_seq = []
+        self._state = QuizState.WRONG_PRACTICE
+        self._render_state()
+
+    def _accept_correct(self) -> None:
+        self._cancel_auto_advance()
+        self._finalize(correct=True)
+
+    def _claim_correct(self) -> None:
+        current = self._current()
+        if current is None:
+            return
+        shortcut, pack = current
+        self._remember_alias_seq(
+            self._last_pressed_seq, self._expected_seq(shortcut, pack)
+        )
+        self._finalize(correct=True)
+
+    def _skip_once(self) -> None:
+        self._finalize(correct=False)
+
+    def _action_dismiss_card(self) -> None:
         current = self._current()
         if current is None:
             return
@@ -1553,36 +913,444 @@ class QuizScreen(Screen):
         self._advance()
 
 
-class KeypalApp(App):
-    TITLE = "keypal"
-    CSS = CSS
-    ENABLE_COMMAND_PALETTE = False  # don't steal Ctrl+P from quiz capture
-
-    def __init__(self) -> None:
+class BrowseScreen(QWidget):
+    def __init__(self, app: "KeypalApp", pack: Pack, storage: Storage):
         super().__init__()
+        self._app = app
+        self._pack = pack
+        self._storage = storage
+        self._disabled: set[str] = storage.load_disabled()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+
+        title = QLabel(pack.name)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        layout.addWidget(title)
+
+        desc = QLabel(pack.description)
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("color: gray;")
+        layout.addWidget(desc)
+
+        if pack.prefix:
+            pretty = "+".join(prettify_combo(pack.prefix))
+            prefix_label = QLabel(f"All shortcuts shown after prefix {pretty}")
+            prefix_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            prefix_label.setStyleSheet("color: gray; font-style: italic;")
+            layout.addWidget(prefix_label)
+
+        self._table = QTableWidget(len(pack.shortcuts), 3)
+        self._table.setHorizontalHeaderLabels(["Action", "Keys", "Status"])
+        self._table.verticalHeader().setVisible(False)
+        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self._table.cellDoubleClicked.connect(self._on_row_double_clicked)
+        layout.addWidget(self._table)
+
+        for i, shortcut in enumerate(pack.shortcuts):
+            self._table.setItem(i, 0, QTableWidgetItem(shortcut.action))
+            self._table.setCellWidget(i, 1, self._keys_widget(shortcut))
+            self._table.setItem(i, 2, QTableWidgetItem(self._status_text(shortcut)))
+        self._table.resizeRowsToContents()
+        self._table.selectRow(0)
+
+        layout.addWidget(
+            HintBar(
+                [
+                    ("Enter", "Practice", self._practice_selected),
+                    ("F4", "Toggle Skip", self._toggle_skip),
+                    ("Esc", "Back", self._app.pop_screen),
+                ]
+            )
+        )
+
+    def _keys_widget(self, shortcut: Shortcut) -> QWidget:
+        widget = QWidget()
+        row = QHBoxLayout(widget)
+        row.setContentsMargins(4, 2, 4, 2)
+        row.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        for j, key in enumerate(shortcut.keys):
+            if j > 0:
+                slash = QLabel(" / ")
+                slash.setStyleSheet("color: gray;")
+                row.addWidget(slash)
+            tokens = prettify_combo(key)
+            for k, token in enumerate(tokens):
+                if k > 0:
+                    plus = QLabel("+")
+                    plus.setStyleSheet("color: gray;")
+                    row.addWidget(plus)
+                row.addWidget(KeyChip(token))
+        return widget
+
+    def _status_text(self, shortcut: Shortcut) -> str:
+        sid = self._pack.shortcut_id(shortcut)
+        parts = []
+        if sid in self._disabled:
+            parts.append("skipped")
+        if shortcut.shared_id and not shortcut.shared_id.startswith(
+            f"{self._pack.id}:"
+        ):
+            ns = shortcut.shared_id.split(":", 1)[0]
+            parts.append(f"common with {ns}")
+        return " | ".join(parts)
+
+    def _selected_row(self) -> int:
+        return self._table.currentRow()
+
+    def _practice_selected(self) -> None:
+        row = self._selected_row()
+        if 0 <= row < len(self._pack.shortcuts):
+            shortcut = self._pack.shortcuts[row]
+            self._app.push_screen(
+                QuizScreen(self._app, (self._pack,), self._storage, force=[shortcut])
+            )
+
+    def _toggle_skip(self) -> None:
+        row = self._selected_row()
+        if 0 <= row < len(self._pack.shortcuts):
+            shortcut = self._pack.shortcuts[row]
+            sid = self._pack.shortcut_id(shortcut)
+            if sid in self._disabled:
+                self._disabled.discard(sid)
+            else:
+                self._disabled.add(sid)
+            self._storage.save_disabled(self._disabled)
+            self._table.setItem(row, 2, QTableWidgetItem(self._status_text(shortcut)))
+
+    def _on_row_double_clicked(self, row: int, _column: int) -> None:
+        if 0 <= row < len(self._pack.shortcuts):
+            shortcut = self._pack.shortcuts[row]
+            self._app.push_screen(
+                QuizScreen(self._app, (self._pack,), self._storage, force=[shortcut])
+            )
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        key = event.key()
+        if key == Qt.Key.Key_Escape:
+            self._app.pop_screen()
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._practice_selected()
+        elif key == Qt.Key.Key_F4:
+            self._toggle_skip()
+        elif key == Qt.Key.Key_Up:
+            row = max(0, self._selected_row() - 1)
+            self._table.selectRow(row)
+        elif key == Qt.Key.Key_Down:
+            row = min(self._table.rowCount() - 1, self._selected_row() + 1)
+            self._table.selectRow(row)
+        else:
+            super().keyPressEvent(event)
+
+
+class StatsScreen(QWidget):
+    def __init__(self, app: "KeypalApp", packs: tuple[Pack, ...], storage: Storage):
+        super().__init__()
+        self._app = app
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        title = QLabel("Stats")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        layout.addWidget(title)
+
+        body = QLabel(self._render_stats(packs, storage))
+        body.setStyleSheet("font-family: monospace;")
+        layout.addWidget(body)
+
+        layout.addWidget(HintBar([("Esc", "Back", self._app.pop_screen)]))
+
+    def _render_stats(self, packs: tuple[Pack, ...], storage: Storage) -> str:
+        cards = storage.load_cards()
+        disabled = storage.load_disabled()
+        review_count = sum(1 for _ in storage.read_reviews())
+        now = datetime.now(timezone.utc)
+
+        state_counts = {state: 0 for state in State}
+        for card in cards.values():
+            state_counts[card.state] = state_counts.get(card.state, 0) + 1
+
+        pack_lines = []
+        for pack in packs:
+            active_ids = [
+                pack.shortcut_id(s)
+                for s in pack.shortcuts
+                if pack.shortcut_id(s) not in disabled
+            ]
+            tracked = len(set(active_ids) & cards.keys())
+            due = sum(
+                1
+                for sid in active_ids
+                if (card := cards.get(sid)) is not None
+                and (card.due is None or card.due <= now)
+            )
+            total = len(active_ids)
+            skipped = len(pack.shortcuts) - total
+            line = f"  {pack.name}: {tracked}/{total} tracked, {due} due"
+            if skipped:
+                line += f" ({skipped} skipped)"
+            pack_lines.append(line)
+
+        lines = [
+            f"Reviews completed: {review_count}",
+            "",
+            "Cards by state:",
+            *[f"  {state.name}: {state_counts.get(state, 0)}" for state in State],
+            "",
+            "Per pack:",
+            *pack_lines,
+        ]
+        return "\n".join(lines)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self._app.pop_screen()
+        else:
+            super().keyPressEvent(event)
+
+
+SETTING_FIELDS = [
+    (
+        "new_per_session",
+        "New cards per session",
+        "How many new shortcuts to introduce each session",
+    ),
+    (
+        "auto_advance_secs",
+        "Auto-advance delay (seconds)",
+        "Seconds to wait before advancing after a correct answer",
+    ),
+]
+
+THRESHOLD_FIELDS = [
+    (
+        "fast_ms",
+        "Fast threshold (ms)",
+        "Correct answers faster than this are rated Easy",
+    ),
+    (
+        "slow_ms",
+        "Slow threshold (ms)",
+        "Correct answers slower than this are rated Hard",
+    ),
+]
+
+
+class SettingsScreen(QWidget):
+    def __init__(self, app: "KeypalApp", storage: Storage):
+        super().__init__()
+        self._app = app
+        self._storage = storage
+        self._settings = storage.load_settings()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(12)
+
+        title = QLabel("Settings")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        layout.addWidget(title)
+
+        self._inputs: dict[str, QLineEdit] = {}
+        for field_name, label, desc in SETTING_FIELDS + THRESHOLD_FIELDS:
+            row = QVBoxLayout()
+            row.setSpacing(2)
+            lbl = QLabel(label)
+            lbl.setStyleSheet("font-weight: bold;")
+            row.addWidget(lbl)
+            desc_lbl = QLabel(desc)
+            desc_lbl.setStyleSheet("color: gray; font-size: 12px;")
+            row.addWidget(desc_lbl)
+            inp = QLineEdit(str(getattr(self._settings, field_name)))
+            self._inputs[field_name] = inp
+            row.addWidget(inp)
+            layout.addLayout(row)
+
+        self._auto_adjust = QCheckBox("Auto-adjust thresholds based on my timing")
+        self._auto_adjust.setChecked(self._settings.auto_adjust_thresholds)
+        self._auto_adjust.toggled.connect(self._on_auto_adjust_toggled)
+        layout.addWidget(self._auto_adjust)
+
+        self._on_auto_adjust_toggled(self._settings.auto_adjust_thresholds)
+
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self._save)
+        btn_layout.addWidget(save_btn)
+        reset_btn = QPushButton("Reset to defaults")
+        reset_btn.clicked.connect(self._reset)
+        btn_layout.addWidget(reset_btn)
+        layout.addLayout(btn_layout)
+
+        path_label = QLabel(f"Stored in {storage.settings_path}")
+        path_label.setStyleSheet("color: gray; font-size: 11px;")
+        path_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(path_label)
+
+        layout.addWidget(HintBar([("Esc", "Back", self._app.pop_screen)]))
+
+    def _on_auto_adjust_toggled(self, checked: bool) -> None:
+        for field_name, _, _ in THRESHOLD_FIELDS:
+            self._inputs[field_name].setEnabled(not checked)
+
+    def _save(self) -> None:
+        try:
+            kwargs = {}
+            for field_name, _, _ in SETTING_FIELDS + THRESHOLD_FIELDS:
+                raw = self._inputs[field_name].text()
+                if field_name == "auto_advance_secs":
+                    kwargs[field_name] = float(raw)
+                else:
+                    kwargs[field_name] = int(raw)
+            kwargs["auto_adjust_thresholds"] = self._auto_adjust.isChecked()
+            settings = Settings(**kwargs)
+        except ValueError, TypeError:
+            QMessageBox.warning(self, "Invalid input", "All values must be numbers")
+            return
+        self._settings = settings
+        self._storage.save_settings(settings)
+        self._app.settings = settings
+        self._app.statusBar().showMessage("Settings saved", 3000)
+
+    def _reset(self) -> None:
+        self._settings = Settings()
+        self._storage.save_settings(self._settings)
+        self._app.settings = self._settings
+        for field_name, _, _ in SETTING_FIELDS + THRESHOLD_FIELDS:
+            self._inputs[field_name].setText(str(getattr(self._settings, field_name)))
+        self._auto_adjust.setChecked(self._settings.auto_adjust_thresholds)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self._app.pop_screen()
+        else:
+            super().keyPressEvent(event)
+
+
+class DiagnosticScreen(QWidget):
+    def __init__(self, app: "KeypalApp"):
+        super().__init__()
+        self._app = app
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(12)
+
+        title = QLabel("Key Diagnostic")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        layout.addWidget(title)
+
+        prompt = QLabel("Press any key combo")
+        prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(prompt)
+
+        self._combo_display = KeyCombo()
+        layout.addWidget(self._combo_display)
+
+        self._raw_label = QLabel()
+        self._raw_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._raw_label.setStyleSheet("color: gray; font-family: monospace;")
+        layout.addWidget(self._raw_label)
+
+        self._normalized_label = QLabel()
+        self._normalized_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._normalized_label)
+
+        layout.addWidget(HintBar([("Esc", "Back", self._app.pop_screen)]))
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self._app.pop_screen()
+            return
+
+        combo = qt_event_to_combo(event)
+        if combo is None:
+            return
+
+        self._combo_display.clear()
+        try:
+            self._combo_display.set_combo(combo)
+        except ValueError:
+            pass
+
+        key_enum = Qt.Key(event.key())
+        enum_name = key_enum.name
+        if isinstance(enum_name, bytes):
+            enum_name = enum_name.decode()
+        mods = event.modifiers()
+        mod_parts = []
+        if mods & Qt.KeyboardModifier.ControlModifier:
+            mod_parts.append("Ctrl")
+        if mods & Qt.KeyboardModifier.AltModifier:
+            mod_parts.append("Alt")
+        if mods & Qt.KeyboardModifier.ShiftModifier:
+            mod_parts.append("Shift")
+        if mods & Qt.KeyboardModifier.MetaModifier:
+            mod_parts.append("Meta")
+        raw = f"Qt: {enum_name} | mods: {'+'.join(mod_parts) or 'none'} | text: {event.text()!r}"
+        self._raw_label.setText(raw)
+        self._normalized_label.setText(f"Normalized: {combo}")
+
+
+class KeypalApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("keypal")
+        self.setMinimumSize(500, 400)
+        self.resize(600, 500)
+        self.setStyleSheet("QWidget { font-size: 14px; }")
+
         self.packs = builtin_packs()
         self.storage = Storage()
         self.settings = self.storage.load_settings()
-        self.tmux_swap = TmuxPrefixSwap()
-        atexit.register(self.tmux_swap.deactivate)
 
-    def get_driver_class(self) -> type[Driver]:
-        # Force the legacy ESC-prefix keyboard parser instead of kitty protocol.
-        # Without this, Alt+Enter (and a handful of other modified-special-key
-        # combos) gets reported as plain `enter` in some terminal stacks.
-        return LegacyKeyboardDriver
+        self._stack = QStackedWidget()
+        self.setCentralWidget(self._stack)
+        self._screen_stack: list[QWidget] = []
 
-    def on_mount(self) -> None:
-        match darkdetect.theme():
-            case "Light":
-                self.theme = "solarized-light"
-            case "Dark":
-                self.theme = "solarized-dark"
-        self.push_screen(HomeScreen(self.packs, self.storage))
+        self._home = HomeScreen(self)
+        self.push_screen(self._home)
+
+    def push_screen(self, screen: QWidget) -> None:
+        self._stack.addWidget(screen)
+        self._stack.setCurrentWidget(screen)
+        self._screen_stack.append(screen)
+        screen.setFocus()
+
+    def pop_screen(self) -> None:
+        if len(self._screen_stack) <= 1:
+            return
+        old = self._screen_stack.pop()
+        self._stack.removeWidget(old)
+        old.deleteLater()
+        current = self._screen_stack[-1]
+        self._stack.setCurrentWidget(current)
+        current.setFocus()
+        if hasattr(current, "on_resume"):
+            current.on_resume()
 
 
 def main() -> None:
-    KeypalApp().run()
+    app = QApplication([])
+    window = KeypalApp()
+    window.show()
+    raise SystemExit(app.exec())
 
 
 if __name__ == "__main__":

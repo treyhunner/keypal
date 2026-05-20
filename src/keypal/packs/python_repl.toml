@@ -113,6 +113,13 @@ shared_id = "readline:Delete word before cursor"
 action = "Delete word after cursor"
 keys = ["alt+d"]
 tags = ["editing"]
+shared_id = "readline:Delete word after cursor"
+
+[[shortcuts]]
+action = "Yank (paste) most recently killed text"
+keys = ["ctrl+y"]
+tags = ["editing"]
+shared_id = "readline:Yank (paste) most recently killed text"
 
 [[shortcuts]]
 action = "Search command history"

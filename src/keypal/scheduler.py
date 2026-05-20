@@ -1,3 +1,4 @@
+import random
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -144,7 +145,9 @@ def select_session(
         elif is_shared_other and unseen_in_pack:
             # Shared with another pack and never reviewed in *this* pack: introduce it once.
             new.append(shortcut)
-    return due + new[:new_per_session]
+    session = due + new[:new_per_session]
+    random.shuffle(session)
+    return session
 
 
 def select_multi_session(
@@ -179,4 +182,6 @@ def select_multi_session(
                 due.append((shortcut, pack))
             elif is_shared_other and unseen_in_pack:
                 new.append((shortcut, pack))
-    return due + new[:new_per_session]
+    session = due + new[:new_per_session]
+    random.shuffle(session)
+    return session
