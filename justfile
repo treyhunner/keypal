@@ -32,3 +32,9 @@ build:
 # Publish to PyPI
 publish:
     uv publish
+
+# Build the Flatpak bundle (Linux)
+package:
+    uv run briefcase create linux flatpak
+    echo "--isolated" >> build/keypal/linux/flatpak/pip-options.txt
+    uv run briefcase build linux flatpak
