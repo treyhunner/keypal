@@ -40,3 +40,26 @@ dev = [
     "pytest-qt>=4.4",
     "ruff>=0.15.12",
 ]
+
+[tool.briefcase]
+project_name = "KeyPal"
+bundle = "io.github.treyhunner"
+version = "0.2.0"
+author = "Trey Hunner"
+author_email = "trey@treyhunner.com"
+
+[tool.briefcase.app.keypal]
+formal_name = "KeyPal"
+description = "Learn the keyboard shortcuts for common apps"
+sources = ["src/keypal"]
+requires = [
+    "fsrs>=6.3,<7",
+    "platformdirs>=4.9.6",
+    "PySide6>=6.7",
+]
+
+[tool.briefcase.app.keypal.macOS]
+min_os_version = "12.0"
+
+[tool.briefcase.app.keypal.linux]
+linuxdeploy_plugins = ["qt"]
