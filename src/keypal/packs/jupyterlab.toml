@@ -1,0 +1,149 @@
+[pack]
+id = "jupyterlab"
+name = "JupyterLab"
+description = "Essential JupyterLab keyboard shortcuts for notebook editing and navigation"
+
+
+# === Cell execution ===
+
+[[shortcuts]]
+action = "Run cell and select below"
+keys = ["shift+enter"]
+tags = ["execution"]
+
+[[shortcuts]]
+action = "Run cell and insert below"
+keys = ["alt+enter"]
+tags = ["execution"]
+
+[[shortcuts]]
+action = "Run cell and stay"
+keys = ["ctrl+enter"]
+tags = ["execution"]
+
+[[shortcuts]]
+action = "Restart kernel and run all cells"
+keys = ["ctrl+shift+f5"]
+tags = ["execution"]
+
+
+# === Cell management ===
+
+[[shortcuts]]
+action = "Cut cell"
+keys = ["ctrl+shift+x"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Copy cell"
+keys = ["ctrl+shift+c"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Paste cell below"
+keys = ["ctrl+shift+v"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Delete cell"
+keys = ["ctrl+shift+d"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Merge selected cells"
+keys = ["ctrl+shift+m"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Split cell at cursor"
+keys = ["ctrl+shift+-"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Move cell up"
+keys = ["ctrl+shift+up"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Move cell down"
+keys = ["ctrl+shift+down"]
+tags = ["cells"]
+
+
+# === Cell type ===
+
+[[shortcuts]]
+action = "Change cell to code"
+keys = ["ctrl+shift+1"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Change cell to markdown"
+keys = ["ctrl+shift+2"]
+tags = ["cells"]
+
+[[shortcuts]]
+action = "Change cell to raw"
+keys = ["ctrl+shift+3"]
+tags = ["cells"]
+
+
+# === Navigation ===
+
+[[shortcuts]]
+action = "Open command palette"
+keys = ["ctrl+shift+p"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Toggle left sidebar"
+keys = ["ctrl+shift+l"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Save notebook"
+keys = ["ctrl+s"]
+tags = ["file"]
+
+[[shortcuts]]
+action = "Find and replace"
+keys = ["ctrl+h"]
+tags = ["editing"]
+
+
+# === Editing ===
+
+[[shortcuts]]
+action = "Toggle comment"
+keys = ["ctrl+/"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Indent"
+keys = ["ctrl+]"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Dedent"
+keys = ["ctrl+["]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Undo"
+keys = ["ctrl+z"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Redo"
+keys = ["ctrl+shift+z"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Select all"
+keys = ["ctrl+a"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Show tooltip"
+keys = ["ctrl+shift+i"]
+tags = ["editing"]

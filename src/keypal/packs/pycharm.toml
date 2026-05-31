@@ -1,0 +1,242 @@
+[pack]
+id = "pycharm"
+name = "PyCharm"
+description = "Essential PyCharm shortcuts for Python development, navigation, and refactoring"
+
+
+# === Navigation ===
+
+[[shortcuts]]
+action = "Go to class"
+keys = ["ctrl+n"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to file"
+keys = ["ctrl+shift+n"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to symbol"
+keys = ["ctrl+alt+shift+n"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to declaration"
+keys = ["ctrl+b"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to implementation"
+keys = ["ctrl+alt+b"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to line"
+keys = ["ctrl+g"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Navigate back"
+keys = ["ctrl+alt+left"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Navigate forward"
+keys = ["ctrl+alt+right"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "File structure popup"
+keys = ["ctrl+f12"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Recent files"
+keys = ["ctrl+e"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Find action"
+keys = ["ctrl+shift+a"]
+tags = ["navigation"]
+
+
+# === Search ===
+
+[[shortcuts]]
+action = "Find in file"
+keys = ["ctrl+f"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Replace in file"
+keys = ["ctrl+h"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Find in path"
+keys = ["ctrl+shift+f"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Replace in path"
+keys = ["ctrl+shift+h"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Find usages"
+keys = ["alt+f7"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Highlight usages in file"
+keys = ["ctrl+shift+f7"]
+tags = ["search"]
+
+
+# === Editing ===
+
+[[shortcuts]]
+action = "Duplicate line or selection"
+keys = ["ctrl+d"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Delete line"
+keys = ["ctrl+y"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Toggle line comment"
+keys = ["ctrl+/"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Toggle block comment"
+keys = ["ctrl+shift+/"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Move line up"
+keys = ["alt+shift+up"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Move line down"
+keys = ["alt+shift+down"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Extend selection"
+keys = ["ctrl+w"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Shrink selection"
+keys = ["ctrl+shift+w"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Complete statement"
+keys = ["ctrl+shift+enter"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Basic code completion"
+keys = ["ctrl+space"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Show intention actions"
+keys = ["alt+enter"]
+tags = ["editing"]
+
+
+# === Refactoring ===
+
+[[shortcuts]]
+action = "Rename"
+keys = ["shift+f6"]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Extract variable"
+keys = ["ctrl+alt+v"]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Extract method"
+keys = ["ctrl+alt+m"]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Inline variable or method"
+keys = ["ctrl+alt+n"]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Reformat code"
+keys = ["ctrl+alt+l"]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Optimize imports"
+keys = ["ctrl+alt+o"]
+tags = ["refactoring"]
+
+
+# === Run and debug ===
+
+[[shortcuts]]
+action = "Run current configuration"
+keys = ["shift+f10"]
+tags = ["run"]
+
+[[shortcuts]]
+action = "Debug current configuration"
+keys = ["shift+f9"]
+tags = ["run"]
+
+[[shortcuts]]
+action = "Step over"
+keys = ["f8"]
+tags = ["debug"]
+
+[[shortcuts]]
+action = "Step into"
+keys = ["f7"]
+tags = ["debug"]
+
+[[shortcuts]]
+action = "Step out"
+keys = ["shift+f8"]
+tags = ["debug"]
+
+[[shortcuts]]
+action = "Resume program"
+keys = ["f9"]
+tags = ["debug"]
+
+[[shortcuts]]
+action = "Toggle breakpoint"
+keys = ["ctrl+f8"]
+tags = ["debug"]
+
+
+# === View ===
+
+[[shortcuts]]
+action = "Toggle tool window bar"
+keys = ["ctrl+shift+f12"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Terminal"
+keys = ["alt+f12"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Project tool window"
+keys = ["alt+1"]
+tags = ["view"]

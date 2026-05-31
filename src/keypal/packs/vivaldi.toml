@@ -1,0 +1,192 @@
+[pack]
+id = "vivaldi"
+name = "Vivaldi"
+description = "Essential Vivaldi browser shortcuts for tab management, navigation, and panels"
+
+
+# === Tab management ===
+
+[[shortcuts]]
+action = "New tab"
+keys = ["ctrl+t"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Close tab"
+keys = ["ctrl+w"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Reopen closed tab"
+keys = ["ctrl+shift+t"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Next tab"
+keys = ["ctrl+tab"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Previous tab"
+keys = ["ctrl+shift+tab"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Switch to tab 1"
+keys = ["ctrl+1"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Switch to tab 2"
+keys = ["ctrl+2"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Switch to last tab"
+keys = ["ctrl+9"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Duplicate tab"
+keys = ["ctrl+shift+d"]
+tags = ["tabs"]
+
+[[shortcuts]]
+action = "Move tab to new window"
+keys = ["ctrl+shift+n"]
+tags = ["tabs"]
+
+
+# === Navigation ===
+
+[[shortcuts]]
+action = "Go to address bar"
+keys = ["ctrl+l"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Back"
+keys = ["alt+left"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Forward"
+keys = ["alt+right"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Reload page"
+keys = ["ctrl+r", "f5"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Hard reload (bypass cache)"
+keys = ["ctrl+shift+r", "ctrl+f5"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Open Quick Commands"
+keys = ["f2"]
+tags = ["navigation"]
+
+
+# === Search ===
+
+[[shortcuts]]
+action = "Find in page"
+keys = ["ctrl+f"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Find next"
+keys = ["ctrl+g"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Find previous"
+keys = ["ctrl+shift+g"]
+tags = ["search"]
+
+
+# === Panels and UI ===
+
+[[shortcuts]]
+action = "Toggle bookmarks panel"
+keys = ["ctrl+shift+b"]
+tags = ["panels"]
+
+[[shortcuts]]
+action = "Toggle downloads panel"
+keys = ["ctrl+shift+j"]
+tags = ["panels"]
+
+[[shortcuts]]
+action = "Toggle notes panel"
+keys = ["ctrl+shift+o"]
+tags = ["panels"]
+
+[[shortcuts]]
+action = "Toggle history panel"
+keys = ["ctrl+shift+h"]
+tags = ["panels"]
+
+[[shortcuts]]
+action = "Toggle tab bar"
+keys = ["ctrl+f8"]
+tags = ["view"]
+
+
+# === Page actions ===
+
+[[shortcuts]]
+action = "Zoom in"
+keys = ["ctrl++", "ctrl+="]
+tags = ["zoom"]
+
+[[shortcuts]]
+action = "Zoom out"
+keys = ["ctrl+-"]
+tags = ["zoom"]
+
+[[shortcuts]]
+action = "Reset zoom"
+keys = ["ctrl+0"]
+tags = ["zoom"]
+
+[[shortcuts]]
+action = "Toggle full screen"
+keys = ["f11"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "View page source"
+keys = ["ctrl+u"]
+tags = ["developer"]
+
+[[shortcuts]]
+action = "Open developer tools"
+keys = ["ctrl+shift+i", "f12"]
+tags = ["developer"]
+
+[[shortcuts]]
+action = "Take screenshot"
+keys = ["ctrl+shift+s"]
+tags = ["tools"]
+
+
+# === Vivaldi-specific ===
+
+[[shortcuts]]
+action = "Toggle web panel tiling"
+keys = ["ctrl+f6"]
+tags = ["vivaldi"]
+
+[[shortcuts]]
+action = "Add bookmark"
+keys = ["ctrl+d"]
+tags = ["bookmarks"]
+
+[[shortcuts]]
+action = "Save page as"
+keys = ["ctrl+s"]
+tags = ["file"]

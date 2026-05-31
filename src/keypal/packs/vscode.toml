@@ -1,0 +1,237 @@
+[pack]
+id = "vscode"
+name = "Visual Studio Code"
+description = "Essential VS Code shortcuts for editing, navigation, and file management"
+
+
+# === Command and file navigation ===
+
+[[shortcuts]]
+action = "Open command palette"
+keys = ["ctrl+shift+p"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Quick open file"
+keys = ["ctrl+p"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to symbol in file"
+keys = ["ctrl+shift+o"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to line"
+keys = ["ctrl+g"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go to definition"
+keys = ["f12"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Peek definition"
+keys = ["alt+f12"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go back"
+keys = ["alt+left"]
+tags = ["navigation"]
+
+[[shortcuts]]
+action = "Go forward"
+keys = ["alt+right"]
+tags = ["navigation"]
+
+
+# === Search ===
+
+[[shortcuts]]
+action = "Find in file"
+keys = ["ctrl+f"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Find and replace"
+keys = ["ctrl+h"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Search across files"
+keys = ["ctrl+shift+f"]
+tags = ["search"]
+
+[[shortcuts]]
+action = "Search and replace across files"
+keys = ["ctrl+shift+h"]
+tags = ["search"]
+
+
+# === Editing ===
+
+[[shortcuts]]
+action = "Toggle line comment"
+keys = ["ctrl+/"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Toggle block comment"
+keys = ["ctrl+shift+/"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Move line up"
+keys = ["alt+up"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Move line down"
+keys = ["alt+down"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Copy line down"
+keys = ["ctrl+shift+alt+down"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Copy line up"
+keys = ["ctrl+shift+alt+up"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Delete line"
+keys = ["ctrl+shift+k"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Add cursor above"
+keys = ["ctrl+alt+up"]
+tags = ["multicursor"]
+
+[[shortcuts]]
+action = "Add cursor below"
+keys = ["ctrl+alt+down"]
+tags = ["multicursor"]
+
+[[shortcuts]]
+action = "Select all occurrences of current selection"
+keys = ["ctrl+shift+l"]
+tags = ["multicursor"]
+
+[[shortcuts]]
+action = "Add selection to next find match"
+keys = ["ctrl+d"]
+tags = ["multicursor"]
+
+[[shortcuts]]
+action = "Expand selection"
+keys = ["ctrl+shift+right"]
+tags = ["selection"]
+
+[[shortcuts]]
+action = "Shrink selection"
+keys = ["ctrl+shift+left"]
+tags = ["selection"]
+
+[[shortcuts]]
+action = "Indent line"
+keys = ["ctrl+]"]
+tags = ["editing"]
+
+[[shortcuts]]
+action = "Outdent line"
+keys = ["ctrl+["]
+tags = ["editing"]
+
+
+# === View and panels ===
+
+[[shortcuts]]
+action = "Toggle sidebar"
+keys = ["ctrl+b"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Toggle terminal"
+keys = ["ctrl+`"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Toggle problems panel"
+keys = ["ctrl+shift+m"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Focus editor group 1"
+keys = ["ctrl+1"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Focus editor group 2"
+keys = ["ctrl+2"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Split editor"
+keys = ["ctrl+\\"]
+tags = ["view"]
+
+[[shortcuts]]
+action = "Zen mode"
+keys = ["ctrl+shift+z"]
+tags = ["view"]
+
+
+# === File management ===
+
+[[shortcuts]]
+action = "New file"
+keys = ["ctrl+n"]
+tags = ["file"]
+
+[[shortcuts]]
+action = "Save file"
+keys = ["ctrl+s"]
+tags = ["file"]
+
+[[shortcuts]]
+action = "Save all"
+keys = ["ctrl+shift+s"]
+tags = ["file"]
+
+[[shortcuts]]
+action = "Close editor"
+keys = ["ctrl+w"]
+tags = ["file"]
+
+[[shortcuts]]
+action = "Reopen closed editor"
+keys = ["ctrl+shift+t"]
+tags = ["file"]
+
+
+# === Refactoring ===
+
+[[shortcuts]]
+action = "Rename symbol"
+keys = ["f2"]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Format document"
+keys = ["ctrl+shift+i"]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Quick fix"
+keys = ["ctrl+."]
+tags = ["refactoring"]
+
+[[shortcuts]]
+action = "Trigger suggest (autocomplete)"
+keys = ["ctrl+space"]
+tags = ["editing"]
