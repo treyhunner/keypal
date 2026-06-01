@@ -4,7 +4,7 @@ from enum import Enum
 
 from fsrs import Card, State
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtGui import QKeyEvent, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -192,10 +193,8 @@ class PackCard(QWidget):
     def __init__(self, pack: Pack, checked: bool, color: str, parent=None):
         super().__init__(parent)
         self.pack = pack
-        self.setStyleSheet(
-            f"PackCard {{ background: palette(base); border: 1px solid palette(mid);"
-            f" border-left: 4px solid {color}; border-radius: 4px; }}"
-        )
+        self._color = color
+        self._update_style(selected=False)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -216,10 +215,12 @@ class PackCard(QWidget):
         layout.addLayout(header)
 
         self._desc_label = QLabel(pack.description)
+        self._desc_label.setWordWrap(True)
         self._desc_label.setStyleSheet("color: gray; font-size: 13px;")
         layout.addWidget(self._desc_label)
 
         self._counts_label = QLabel()
+        self._counts_label.setWordWrap(True)
         self._counts_label.setStyleSheet("font-size: 13px;")
         layout.addWidget(self._counts_label)
 
@@ -234,11 +235,32 @@ class PackCard(QWidget):
     def set_counts(self, text: str) -> None:
         self._counts_label.setText(text)
 
-    def set_selected(self, selected: bool) -> None:
+    def _update_style(self, *, selected: bool) -> None:
         if selected:
-            self.setStyleSheet(self.styleSheet().replace("border: 1px", "border: 2px"))
+            self.setStyleSheet(
+                f"PackCard {{ background: palette(midlight);"
+                f" border: 2px solid {self._color};"
+                f" border-left: 4px solid {self._color}; border-radius: 4px; }}"
+            )
         else:
-            self.setStyleSheet(self.styleSheet().replace("border: 2px", "border: 1px"))
+            self.setStyleSheet(
+                f"PackCard {{ background: palette(base);"
+                f" border: 1px solid palette(mid);"
+                f" border-left: 4px solid {self._color}; border-radius: 4px; }}"
+            )
+
+    def paintEvent(self, event) -> None:
+        from PySide6.QtWidgets import QStyleOption
+
+        opt = QStyleOption()
+        opt.initFrom(self)
+        p = QPainter(self)
+        self.style().drawPrimitive(
+            self.style().PrimitiveElement.PE_Widget, opt, p, self
+        )
+
+    def set_selected(self, selected: bool) -> None:
+        self._update_style(selected=selected)
 
 
 class HomeScreen(QWidget):
@@ -248,7 +270,6 @@ class HomeScreen(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         content = QVBoxLayout()
         content.setSpacing(10)
@@ -269,6 +290,11 @@ class HomeScreen(QWidget):
 
         self._cards: list[PackCard] = []
         self._selected_index = 0
+
+        pack_list = QWidget()
+        pack_layout = QVBoxLayout(pack_list)
+        pack_layout.setSpacing(10)
+        pack_layout.setContentsMargins(0, 0, 0, 0)
         for pack in app.packs:
             color = PACK_COLORS.get(pack.id, "gray")
             card = PackCard(pack, pack.id in self._selected, color)
@@ -279,7 +305,15 @@ class HomeScreen(QWidget):
             )
             card.mouseDoubleClickEvent = lambda e, p=pack: self._start_quiz((p,))
             self._cards.append(card)
-            content.addWidget(card)
+            pack_layout.addWidget(card)
+        pack_layout.addStretch()
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidget(pack_list)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        content.addWidget(self._scroll, stretch=1)
 
         self._update_selection_highlight()
 
@@ -321,6 +355,8 @@ class HomeScreen(QWidget):
     def _update_selection_highlight(self) -> None:
         for i, card in enumerate(self._cards):
             card.set_selected(i == self._selected_index)
+        if 0 <= self._selected_index < len(self._cards):
+            self._scroll.ensureWidgetVisible(self._cards[self._selected_index])
 
     def _on_card_clicked(self, pack: Pack, *, toggle: bool = False) -> None:
         for i, card in enumerate(self._cards):
@@ -1313,7 +1349,7 @@ class KeypalApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("keypal")
         self.setMinimumSize(500, 400)
-        self.resize(600, 500)
+        self.resize(700, 700)
         self.setStyleSheet("QWidget { font-size: 14px; }")
 
         self.packs = builtin_packs()
