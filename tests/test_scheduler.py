@@ -10,10 +10,12 @@ from keypal.scheduler import (
     PERSONAL_MIN_REVIEWS,
     SLOW_MS,
     Thresholds,
+    apply_assessment,
     blend_thresholds,
     classify,
     compute_personal_thresholds,
     get_thresholds,
+    reject_from_assessment,
     review,
     select_multi_session,
     select_session,
@@ -334,3 +336,32 @@ def test_multi_session_excludes_disabled():
 def test_multi_session_empty_packs():
     result = select_multi_session([], {})
     assert result == []
+
+
+# --- apply_assessment ---
+
+
+def test_apply_assessment_disables_correct():
+    results = [("a:Move", True), ("a:Delete", False)]
+    disabled = apply_assessment(results, set())
+    assert "a:Move" in disabled
+    assert "a:Delete" not in disabled
+
+
+def test_apply_assessment_enables_previously_disabled_wrong():
+    results = [("a:Move", False)]
+    disabled = apply_assessment(results, {"a:Move"})
+    assert "a:Move" not in disabled
+
+
+def test_apply_assessment_preserves_unrelated_disabled():
+    results = [("a:Move", True)]
+    disabled = apply_assessment(results, {"other:thing"})
+    assert "other:thing" in disabled
+    assert "a:Move" in disabled
+
+
+def test_reject_from_assessment():
+    disabled = {"a:Move"}
+    result = reject_from_assessment(disabled, {"b:Delete", "c:Paste"})
+    assert result == {"a:Move", "b:Delete", "c:Paste"}

@@ -150,6 +150,33 @@ def select_session(
     return session
 
 
+def apply_assessment(
+    results: list[tuple[str, bool]],
+    current_disabled: set[str],
+) -> set[str]:
+    """Compute the new disabled set after an assessment.
+
+    results: list of (shortcut_id, was_correct) pairs.
+    Returns the updated disabled set: correct and rejected items are disabled,
+    kept items are enabled (even if previously disabled).
+    """
+    new_disabled = set(current_disabled)
+    for sid, correct in results:
+        if correct:
+            new_disabled.add(sid)
+        else:
+            new_disabled.discard(sid)
+    return new_disabled
+
+
+def reject_from_assessment(
+    disabled: set[str],
+    rejected_ids: set[str],
+) -> set[str]:
+    """After triage, disable rejected shortcuts."""
+    return disabled | rejected_ids
+
+
 def select_multi_session(
     packs: Sequence[Pack],
     cards: Mapping[str, Card],
