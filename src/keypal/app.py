@@ -2,7 +2,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 
-from fsrs import Card, State
+from fsrs import Card, Rating, Scheduler, State
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeyEvent, QPainter
 from PySide6.QtWidgets import (
@@ -321,6 +321,7 @@ class HomeScreen(QWidget):
             HintBar(
                 [
                     ("P", "Practice", self._start_practice),
+                    ("A", "Assess", self._assess_highlighted),
                     ("B", "Browse", self._browse_highlighted),
                     (
                         "S",
@@ -440,6 +441,11 @@ class HomeScreen(QWidget):
             return
         self._app.push_screen(QuizScreen(self._app, packs, self._app.storage))
 
+    def _assess_highlighted(self) -> None:
+        pack = self._highlighted_pack()
+        if pack:
+            self._app.push_screen(AssessScreen(self._app, pack, self._app.storage))
+
     def _browse_highlighted(self) -> None:
         pack = self._highlighted_pack()
         if pack:
@@ -451,6 +457,8 @@ class HomeScreen(QWidget):
             self._app.close()
         elif key == Qt.Key.Key_P:
             self._start_practice()
+        elif key == Qt.Key.Key_A:
+            self._assess_highlighted()
         elif key == Qt.Key.Key_X:
             card = self._cards[self._selected_index] if self._cards else None
             if card:
@@ -947,6 +955,283 @@ class QuizScreen(QWidget):
         self._disabled.add(pack.shortcut_id(shortcut))
         self._storage.save_disabled(self._disabled)
         self._advance()
+
+
+class AssessScreen(QWidget):
+    """Quiz all shortcuts in a pack to determine which the user already knows."""
+
+    def __init__(self, app: "KeypalApp", pack: Pack, storage: Storage):
+        super().__init__()
+        self._app = app
+        self._pack = pack
+        self._storage = storage
+        self._aliases: dict[str, set[str]] = storage.load_aliases()
+        self._results: list[tuple[str, bool]] = []
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        self._session = list(pack.shortcuts)
+        self._index = 0
+        self._chord_buffer: list[str] = []
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(8)
+
+        self._progress = QLabel()
+        self._progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._progress.setStyleSheet("color: gray;")
+        layout.addWidget(self._progress)
+
+        header = QLabel("Assessment")
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setStyleSheet("font-weight: bold;")
+        layout.addWidget(header)
+
+        self._prompt = QLabel()
+        self._prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._prompt.setStyleSheet("font-size: 20px; font-weight: bold;")
+        layout.addWidget(self._prompt)
+
+        self._your_combo = KeyCombo()
+        layout.addWidget(self._your_combo)
+
+        self._verdict = QLabel()
+        self._verdict.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._verdict.setStyleSheet("font-size: 18px; font-weight: bold;")
+        layout.addWidget(self._verdict)
+
+        self._expected_combo = KeyCombo()
+        layout.addWidget(self._expected_combo)
+
+        self._hint = HintBar()
+        layout.addWidget(self._hint)
+
+        self._show_current()
+
+    def _current(self) -> Shortcut | None:
+        if self._index >= len(self._session):
+            return None
+        return self._session[self._index]
+
+    def _expected_seq(self, shortcut: Shortcut) -> list[str]:
+        if self._pack.prefix:
+            return [self._pack.prefix, shortcut.keys[0]]
+        return [shortcut.keys[0]]
+
+    def _expected_chord_length(self) -> int:
+        return 2 if self._pack.prefix else 1
+
+    def _match_position(self, position: int, key: str, shortcut: Shortcut) -> bool:
+        if self._pack.prefix and position == 0:
+            return matches(key, [self._pack.prefix], self._aliases)
+        return matches(key, shortcut.keys, self._aliases)
+
+    def _show_current(self) -> None:
+        self._chord_buffer = []
+        self._your_combo.clear()
+        self._expected_combo.clear()
+        self._verdict.setText("")
+
+        shortcut = self._current()
+        if shortcut is None:
+            self._progress.setText("")
+            self._prompt.setText("Assessment complete")
+            self._hint.set_hints([("Enter", "Continue to review", self._finish)])
+            return
+
+        self._progress.setText(f"{self._index + 1} / {len(self._session)}")
+        self._prompt.setText(shortcut.action)
+        self._hint.set_hints([("Space", "Don't Know", self._mark_wrong)])
+
+    def _record_and_advance(self, correct: bool) -> None:
+        shortcut = self._current()
+        if shortcut is None:
+            return
+        sid = self._pack.shortcut_id(shortcut)
+        self._results.append((sid, correct))
+        self._index += 1
+        self._show_current()
+
+    def _mark_wrong(self) -> None:
+        self._record_and_advance(correct=False)
+
+    def _finish(self) -> None:
+        self._app.pop_screen()
+        self._app.push_screen(
+            TriageScreen(self._app, self._pack, self._storage, self._results)
+        )
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.isAutoRepeat():
+            return
+        combo = qt_event_to_combo(event)
+        key = event.key()
+
+        if key == Qt.Key.Key_Escape:
+            self._app.pop_screen()
+            return
+
+        if combo is None:
+            return
+
+        if self._current() is None:
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._finish()
+            return
+
+        if key == Qt.Key.Key_Space and not self._chord_buffer:
+            self._mark_wrong()
+            return
+
+        shortcut = self._current()
+        assert shortcut is not None
+
+        self._chord_buffer.append(combo)
+        position = len(self._chord_buffer) - 1
+
+        if not self._match_position(position, combo, shortcut):
+            self._chord_buffer = []
+            self._record_and_advance(correct=False)
+            return
+
+        if len(self._chord_buffer) < self._expected_chord_length():
+            self._your_combo.set_combo(list(self._chord_buffer))
+            self._hint.set_hints("Now press the next key...")
+            return
+
+        self._chord_buffer = []
+        self._record_and_advance(correct=True)
+
+
+class TriageScreen(QWidget):
+    """After assessment, let user choose which shortcuts to study."""
+
+    def __init__(
+        self,
+        app: "KeypalApp",
+        pack: Pack,
+        storage: Storage,
+        results: list[tuple[str, bool]],
+    ):
+        super().__init__()
+        self._app = app
+        self._pack = pack
+        self._storage = storage
+        self._results = results
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        self._result_by_id = {sid: correct for sid, correct in results}
+        self._all_ids = [sid for sid, _ in results]
+        self._shortcut_by_id = {pack.shortcut_id(s): s for s in pack.shortcuts}
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(8)
+
+        correct_count = sum(1 for _, c in results if c)
+        wrong_count = sum(1 for _, c in results if not c)
+        summary = QLabel(f"Assessment: {correct_count} known, {wrong_count} unknown")
+        summary.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        summary.setStyleSheet("font-size: 14px;")
+        layout.addWidget(summary)
+
+        instruction = QLabel("Check the shortcuts you want to practice:")
+        instruction.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        instruction.setStyleSheet("color: gray;")
+        layout.addWidget(instruction)
+
+        self._table = QTableWidget(len(self._all_ids), 4)
+        self._table.setHorizontalHeaderLabels(["Study", "Action", "Keys", "Result"])
+        self._table.verticalHeader().setVisible(False)
+        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        layout.addWidget(self._table)
+
+        self._checkboxes: list[QCheckBox] = []
+        for i, sid in enumerate(self._all_ids):
+            correct = self._result_by_id[sid]
+            shortcut = self._shortcut_by_id.get(sid)
+            cb = QCheckBox()
+            cb.setChecked(not correct)
+            cb.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self._checkboxes.append(cb)
+            self._table.setCellWidget(i, 0, cb)
+            action_text = shortcut.action if shortcut else sid
+            self._table.setItem(i, 1, QTableWidgetItem(action_text))
+            keys_text = ""
+            if shortcut:
+                keys_text = " / ".join(
+                    "+".join(prettify_combo(k)) for k in shortcut.keys
+                )
+            self._table.setItem(i, 2, QTableWidgetItem(keys_text))
+            result_item = QTableWidgetItem("known" if correct else "missed")
+            self._table.setItem(i, 3, result_item)
+        self._table.resizeRowsToContents()
+        self._table.selectRow(0)
+
+        layout.addWidget(
+            HintBar(
+                [
+                    ("X", "Toggle", self._toggle_selected),
+                    ("Enter", "Confirm", self._confirm),
+                    ("Esc", "Cancel", self._app.pop_screen),
+                ]
+            )
+        )
+
+    def _toggle_selected(self) -> None:
+        row = self._table.currentRow()
+        if 0 <= row < len(self._checkboxes):
+            cb = self._checkboxes[row]
+            cb.setChecked(not cb.isChecked())
+
+    def _confirm(self) -> None:
+        disabled = self._storage.load_disabled()
+
+        kept_ids = []
+        for i, sid in enumerate(self._all_ids):
+            if self._checkboxes[i].isChecked():
+                disabled.discard(sid)
+                kept_ids.append(sid)
+            else:
+                disabled.add(sid)
+
+        self._storage.save_disabled(disabled)
+
+        if kept_ids:
+            cards = self._storage.load_cards()
+            scheduler = Scheduler()
+            for sid in kept_ids:
+                if sid not in cards:
+                    card = Card()
+                    updated, _log = scheduler.review_card(card, Rating.Again)
+                    cards[sid] = updated
+            self._storage.save_cards(cards)
+
+        self._app.pop_screen()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        key = event.key()
+        if key == Qt.Key.Key_Escape:
+            self._app.pop_screen()
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._confirm()
+        elif key == Qt.Key.Key_X:
+            self._toggle_selected()
+        elif key == Qt.Key.Key_Up:
+            row = max(0, self._table.currentRow() - 1)
+            self._table.selectRow(row)
+        elif key == Qt.Key.Key_Down:
+            row = min(self._table.rowCount() - 1, self._table.currentRow() + 1)
+            self._table.selectRow(row)
+        else:
+            super().keyPressEvent(event)
 
 
 class BrowseScreen(QWidget):

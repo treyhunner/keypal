@@ -2,6 +2,7 @@ import pytest
 from PySide6.QtCore import Qt
 
 from keypal.app import (
+    AssessScreen,
     BrowseScreen,
     DiagnosticScreen,
     HomeScreen,
@@ -10,6 +11,7 @@ from keypal.app import (
     QuizState,
     SettingsScreen,
     StatsScreen,
+    TriageScreen,
 )
 from keypal.models import Pack, Shortcut
 from keypal.storage import Storage
@@ -266,3 +268,88 @@ def test_correct_answer_auto_advances(app, qtbot):
     assert quiz._index == 0
     qtbot.wait(5000)
     assert quiz._index == 1
+
+
+# --- Assessment ---
+
+
+def test_assess_opens_assess_screen(app, qtbot):
+    qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_A)
+    current = app._stack.currentWidget()
+    assert isinstance(current, AssessScreen)
+
+
+def test_assess_correct_advances_immediately(app, qtbot):
+    qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_A)
+    assess = app._stack.currentWidget()
+    assert isinstance(assess, AssessScreen)
+    assert assess._index == 0
+    qtbot.keyClick(assess, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    assert assess._index == 1
+
+
+def test_assess_wrong_advances_immediately(app, qtbot):
+    qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_A)
+    assess = app._stack.currentWidget()
+    assert assess._index == 0
+    qtbot.keyClick(assess, Qt.Key.Key_B, Qt.KeyboardModifier.ControlModifier)
+    assert assess._index == 1
+
+
+def test_assess_space_marks_wrong(app, qtbot):
+    qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_A)
+    assess = app._stack.currentWidget()
+    qtbot.keyClick(assess, Qt.Key.Key_Space)
+    assert assess._index == 1
+    assert assess._results[0][1] is False
+
+
+def test_assess_completes_to_triage(app, qtbot):
+    qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_A)
+    assess = app._stack.currentWidget()
+    qtbot.keyClick(assess, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    qtbot.keyClick(assess, Qt.Key.Key_Space)
+    qtbot.keyClick(assess, Qt.Key.Key_Space)
+    assert assess._current() is None
+    qtbot.keyClick(assess, Qt.Key.Key_Return)
+    current = app._stack.currentWidget()
+    assert isinstance(current, TriageScreen)
+
+
+def test_triage_shows_all_results(app, qtbot):
+    qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_A)
+    assess = app._stack.currentWidget()
+    qtbot.keyClick(assess, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    qtbot.keyClick(assess, Qt.Key.Key_Space)
+    qtbot.keyClick(assess, Qt.Key.Key_Space)
+    qtbot.keyClick(assess, Qt.Key.Key_Return)
+    triage = app._stack.currentWidget()
+    assert isinstance(triage, TriageScreen)
+    assert len(triage._checkboxes) == 3
+    # Correct one unchecked, wrong ones checked
+    assert not triage._checkboxes[0].isChecked()
+    assert triage._checkboxes[1].isChecked()
+    assert triage._checkboxes[2].isChecked()
+
+
+def test_triage_confirm_disables_unchecked(app, qtbot):
+    qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_A)
+    assess = app._stack.currentWidget()
+    qtbot.keyClick(assess, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+    qtbot.keyClick(assess, Qt.Key.Key_Space)
+    qtbot.keyClick(assess, Qt.Key.Key_Space)
+    qtbot.keyClick(assess, Qt.Key.Key_Return)
+    triage = app._stack.currentWidget()
+    # Uncheck one of the wrong ones too
+    triage._checkboxes[1].setChecked(False)
+    qtbot.keyClick(triage, Qt.Key.Key_Return)
+    disabled = app.storage.load_disabled()
+    # The correct one (unchecked) should be disabled
+    assert "test:Move to start" in disabled
+    # The unchecked wrong one should be disabled
+    wrong_ids = [sid for sid, correct in assess._results if not correct]
+    assert wrong_ids[0] in disabled
+    # The kept wrong one should NOT be disabled and should have a card
+    assert wrong_ids[1] not in disabled
+    cards = app.storage.load_cards()
+    assert wrong_ids[1] in cards
