@@ -353,3 +353,11 @@ def test_triage_confirm_disables_unchecked(app, qtbot):
     assert wrong_ids[1] not in disabled
     cards = app.storage.load_cards()
     assert wrong_ids[1] in cards
+
+
+def test_home_screen_shows_cold_start_estimate(app):
+    current = app._stack.currentWidget()
+    assert isinstance(current, HomeScreen)
+    card = current._cards[0]
+    assert "~" in card._counts_label.text()
+    assert "Practice (~" in current._practice_btn.text()
