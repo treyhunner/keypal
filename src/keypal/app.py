@@ -26,6 +26,8 @@ from PySide6.QtWidgets import (
 from keypal.keys import matches, normalize, prettify_combo, qt_event_to_combo
 from keypal.models import Pack, Shortcut, builtin_packs
 from keypal.scheduler import (
+    FAMILIAR_STABILITY_DAYS,
+    KNOWN_STABILITY_DAYS,
     PERSONAL_LOOKBACK_DAYS,
     Thresholds,
     get_thresholds,
@@ -1399,9 +1401,24 @@ class StatsScreen(QWidget):
         review_count = sum(1 for _ in storage.read_reviews())
         now = datetime.now(timezone.utc)
 
-        state_counts = {state: 0 for state in State}
+        category_counts = {
+            "Learning": 0,
+            "Familiar": 0,
+            "Known": 0,
+            "Relearning": 0,
+        }
         for card in cards.values():
-            state_counts[card.state] = state_counts.get(card.state, 0) + 1
+            if card.state == State.Review:
+                if card.stability >= KNOWN_STABILITY_DAYS:
+                    category_counts["Known"] += 1
+                elif card.stability >= FAMILIAR_STABILITY_DAYS:
+                    category_counts["Familiar"] += 1
+                else:
+                    category_counts["Learning"] += 1
+            elif card.state == State.Learning:
+                category_counts["Learning"] += 1
+            elif card.state == State.Relearning:
+                category_counts["Relearning"] += 1
 
         pack_lines = []
         for pack in packs:
@@ -1428,7 +1445,7 @@ class StatsScreen(QWidget):
             f"Reviews completed: {review_count}",
             "",
             "Cards by state:",
-            *[f"  {state.name}: {state_counts.get(state, 0)}" for state in State],
+            *[f"  {name}: {count}" for name, count in category_counts.items()],
             "",
             "Per pack:",
             *pack_lines,

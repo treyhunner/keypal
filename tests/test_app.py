@@ -150,6 +150,55 @@ def test_stats_screen_opens(app, qtbot):
     assert isinstance(current, StatsScreen)
 
 
+def test_stats_familiar_known_split(tmp_path):
+    from fsrs import Card, State
+
+    storage = Storage(base_dir=tmp_path)
+
+    def review_card(stability):
+        card = Card()
+        card.state = State.Review
+        card.stability = stability
+        return card
+
+    learning_card = Card()
+    learning_card.state = State.Learning
+
+    relearning_card = Card()
+    relearning_card.state = State.Relearning
+
+    shortcuts = [
+        _shortcut("Move to start", keys=("ctrl+a",)),
+        _shortcut("Move to end", keys=("ctrl+e",)),
+        _shortcut("Delete word", keys=("ctrl+w",)),
+        _shortcut("Clear line", keys=("ctrl+u",)),
+        _shortcut("Transpose", keys=("ctrl+t",)),
+        _shortcut("Kill line", keys=("ctrl+k",)),
+        _shortcut("Yank", keys=("ctrl+y",)),
+        _shortcut("Undo", keys=("ctrl+z",)),
+    ]
+    storage.save_cards(
+        {
+            "test:Move to start": review_card(3.0),
+            "test:Move to end": review_card(6.99),
+            "test:Delete word": review_card(7.0),
+            "test:Clear line": review_card(13.99),
+            "test:Transpose": review_card(14.0),
+            "test:Kill line": review_card(30.0),
+            "test:Yank": learning_card,
+            "test:Undo": relearning_card,
+        }
+    )
+
+    packs = (_pack(shortcuts),)
+    stats_text = StatsScreen._render_stats(None, packs, storage)
+    assert "Learning: 3" in stats_text
+    assert "Familiar: 2" in stats_text
+    assert "Known: 2" in stats_text
+    assert "Relearning: 1" in stats_text
+    assert "Review:" not in stats_text
+
+
 def test_settings_screen_opens(app, qtbot):
     qtbot.keyClick(app._stack.currentWidget(), Qt.Key.Key_C)
     current = app._stack.currentWidget()
