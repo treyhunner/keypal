@@ -4,8 +4,11 @@ from fsrs import Card, Rating
 
 from keypal.models import Pack, Shortcut
 from keypal.scheduler import (
+    COLD_START_MS_PER_CARD,
     DEFAULT_THRESHOLDS,
     FAST_MS,
+    INTER_CARD_OVERHEAD_MS,
+    MIN_REVIEWS_FOR_PACE,
     PERSONAL_FULL_REVIEWS,
     PERSONAL_MIN_REVIEWS,
     SLOW_MS,
@@ -14,7 +17,10 @@ from keypal.scheduler import (
     blend_thresholds,
     classify,
     compute_personal_thresholds,
+    estimate_session_seconds,
+    format_duration,
     get_thresholds,
+    ms_per_card,
     reject_from_assessment,
     review,
     select_multi_session,
@@ -365,3 +371,87 @@ def test_reject_from_assessment():
     disabled = {"a:Move"}
     result = reject_from_assessment(disabled, {"b:Delete", "c:Paste"})
     assert result == {"a:Move", "b:Delete", "c:Paste"}
+
+
+# --- ms_per_card ---
+
+
+def test_ms_per_card_cold_start():
+    assert ms_per_card([]) == COLD_START_MS_PER_CARD
+    assert ms_per_card([3000] * (MIN_REVIEWS_FOR_PACE - 1)) == COLD_START_MS_PER_CARD
+
+
+def test_ms_per_card_filters_zero_and_none():
+    times = [0] * 20 + [None] * 20
+    assert ms_per_card(times) == COLD_START_MS_PER_CARD
+
+
+def test_ms_per_card_uses_median_plus_overhead():
+    times = [4000] * 10
+    assert ms_per_card(times) == 4000 + INTER_CARD_OVERHEAD_MS
+
+
+def test_ms_per_card_small_times_still_get_overhead():
+    times = [100] * 10
+    assert ms_per_card(times) == 100 + INTER_CARD_OVERHEAD_MS
+
+
+def test_ms_per_card_clamps_high():
+    times = [170_000] * 10
+    result = ms_per_card(times)
+    assert result <= 60_000
+
+
+def test_ms_per_card_above_sanity_max_falls_back_to_cold_start():
+    times = [200_000] * 10
+    assert ms_per_card(times) == COLD_START_MS_PER_CARD
+
+
+def test_ms_per_card_filters_bad_keeps_good():
+    times = [0, None, 999_999] + [4000] * 10
+    assert ms_per_card(times) == 4000 + INTER_CARD_OVERHEAD_MS
+
+
+def test_ms_per_card_uses_recent_not_largest():
+    old_slow = [60_000] * 60
+    recent_fast = [2000] * 60
+    result = ms_per_card(old_slow + recent_fast)
+    assert result == 2000 + INTER_CARD_OVERHEAD_MS
+
+
+# --- estimate_session_seconds ---
+
+
+def test_estimate_session_seconds_zero_cards():
+    assert estimate_session_seconds(0, [5000] * 10) == 0
+
+
+def test_estimate_session_seconds_cold_start():
+    result = estimate_session_seconds(5, [])
+    assert result == round(5 * COLD_START_MS_PER_CARD / 1000)
+
+
+def test_estimate_session_seconds_with_data():
+    times = [4000] * 10
+    result = estimate_session_seconds(3, times)
+    expected = round(3 * (4000 + INTER_CARD_OVERHEAD_MS) / 1000)
+    assert result == expected
+
+
+# --- format_duration ---
+
+
+def test_format_duration_zero():
+    assert format_duration(0) == ""
+
+
+def test_format_duration_seconds():
+    assert format_duration(30) == "~30 sec"
+    assert format_duration(59) == "~59 sec"
+
+
+def test_format_duration_minutes():
+    assert format_duration(60) == "~1 min"
+    assert format_duration(90) == "~2 min"
+    assert format_duration(180) == "~3 min"
+    assert format_duration(600) == "~10 min"
