@@ -30,9 +30,12 @@ from keypal.scheduler import (
     KNOWN_STABILITY_DAYS,
     PERSONAL_LOOKBACK_DAYS,
     Thresholds,
+    estimate_session_seconds,
+    format_duration,
     get_thresholds,
     review,
     select_multi_session,
+    select_session,
 )
 from keypal.storage import Settings, Storage
 
@@ -300,7 +303,6 @@ class HomeScreen(QWidget):
         for pack in app.packs:
             color = PACK_COLORS.get(pack.id, "gray")
             card = PackCard(pack, pack.id in self._selected, color)
-            card.set_counts(self._pack_counts(pack))
             card._checkbox.toggled.connect(self._on_checkbox_toggled)
             card.mousePressEvent = lambda e, c=card, p=pack: self._on_card_clicked(
                 p, toggle=True
@@ -309,6 +311,7 @@ class HomeScreen(QWidget):
             self._cards.append(card)
             pack_layout.addWidget(card)
         pack_layout.addStretch()
+        self._refresh_counts()
 
         self._scroll = QScrollArea()
         self._scroll.setWidget(pack_list)
@@ -352,8 +355,7 @@ class HomeScreen(QWidget):
         layout.addLayout(content)
 
     def on_resume(self) -> None:
-        for card in self._cards:
-            card.set_counts(self._pack_counts(card.pack))
+        self._refresh_counts()
 
     def _update_selection_highlight(self) -> None:
         for i, card in enumerate(self._cards):
@@ -376,10 +378,63 @@ class HomeScreen(QWidget):
             if card.checked:
                 self._selected.add(card.pack.id)
         self._app.storage.save_selected_packs(self._selected)
+        self._update_practice_button()
 
-    def _pack_counts(self, pack: Pack) -> str:
-        cards = self._app.storage.load_cards()
-        disabled = self._app.storage.load_disabled()
+    def _refresh_counts(self) -> None:
+        self._cached_cards = self._app.storage.load_cards()
+        self._cached_disabled = self._app.storage.load_disabled()
+        self._cached_seen = self._app.storage.load_seen()
+        self._response_times = [
+            s.get("response_time_ms") for _, _, s in self._app.storage.read_reviews()
+        ]
+        settings = self._app.settings
+        for card in self._cards:
+            session_size = len(
+                select_session(
+                    card.pack,
+                    self._cached_cards,
+                    disabled=self._cached_disabled,
+                    seen=self._cached_seen,
+                    new_per_session=settings.new_per_session,
+                )
+            )
+            card.set_counts(
+                self._pack_counts(
+                    card.pack, self._cached_cards, self._cached_disabled, session_size
+                )
+            )
+        self._update_practice_button()
+
+    def _update_practice_button(self) -> None:
+        selected_packs = tuple(p for p in self._app.packs if p.id in self._selected)
+        if not selected_packs:
+            self._practice_btn.setText("Practice")
+            return
+        settings = self._app.settings
+        n_cards = len(
+            select_multi_session(
+                selected_packs,
+                self._cached_cards,
+                disabled=self._cached_disabled,
+                seen=self._cached_seen,
+                new_per_session=settings.new_per_session,
+            )
+        )
+        duration = format_duration(
+            estimate_session_seconds(n_cards, self._response_times)
+        )
+        if duration:
+            self._practice_btn.setText(f"Practice ({duration})")
+        else:
+            self._practice_btn.setText("Practice")
+
+    def _pack_counts(
+        self,
+        pack: Pack,
+        cards: dict,
+        disabled: set[str],
+        session_size: int,
+    ) -> str:
         now = datetime.now(timezone.utc)
         due = 0
         new = 0
@@ -412,6 +467,11 @@ class HomeScreen(QWidget):
             parts.append(f"{new} new")
         if shared_known:
             parts.append(f"{shared_known} shared")
+        duration = format_duration(
+            estimate_session_seconds(session_size, self._response_times)
+        )
+        if duration:
+            parts.append(duration)
         return " | ".join(parts)
 
     def _highlighted_pack(self) -> Pack | None:

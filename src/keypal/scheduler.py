@@ -2,6 +2,7 @@ import random
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from statistics import median
 
 from fsrs import Card, Rating, ReviewLog, Scheduler
 
@@ -14,6 +15,13 @@ KNOWN_STABILITY_DAYS = 14
 DEFAULT_NEW_PER_SESSION = 5
 
 SANITY_MAX_TIMING_MS = 180_000
+
+RECENT_REVIEWS_FOR_PACE = 60
+MIN_REVIEWS_FOR_PACE = 5
+INTER_CARD_OVERHEAD_MS = 3_000
+COLD_START_MS_PER_CARD = 8_000
+MIN_MS_PER_CARD = 2_000
+MAX_MS_PER_CARD = 60_000
 PERSONAL_MIN_REVIEWS = 30
 PERSONAL_FULL_REVIEWS = 100
 PERSONAL_LOOKBACK_DAYS = 60
@@ -214,3 +222,34 @@ def select_multi_session(
     session = due + new[:new_per_session]
     random.shuffle(session)
     return session
+
+
+def ms_per_card(response_times: Iterable[int | None]) -> int:
+    """Median response time plus inter-card overhead, with cold-start fallback."""
+    sane = [
+        t for t in response_times if t is not None and 0 < t <= SANITY_MAX_TIMING_MS
+    ]
+    recent = sane[-RECENT_REVIEWS_FOR_PACE:]
+    if len(recent) < MIN_REVIEWS_FOR_PACE:
+        return COLD_START_MS_PER_CARD
+    raw = int(median(recent)) + INTER_CARD_OVERHEAD_MS
+    return max(MIN_MS_PER_CARD, min(MAX_MS_PER_CARD, raw))
+
+
+def estimate_session_seconds(
+    n_cards: int,
+    response_times: Iterable[int | None],
+) -> int:
+    """Estimated seconds for a session of n_cards."""
+    if n_cards <= 0:
+        return 0
+    return round(n_cards * ms_per_card(response_times) / 1000)
+
+
+def format_duration(seconds: int) -> str:
+    if seconds <= 0:
+        return ""
+    if seconds < 60:
+        return f"~{seconds} sec"
+    minutes = round(seconds / 60)
+    return f"~{max(1, minutes)} min"
